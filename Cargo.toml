@@ -1,0 +1,9 @@
+[package]
+name = "redis-clone"
+version = "0.1.0"
+edition = "2021"
+authors = ["Matej Fric <matej.fric@vsb.cz>"]
+
+[dependencies]
+bytes = "1.7" # "Vec<u8> with shallow cloning"
+tokio = { version = "1.40", features = ["full"] } # async networking
