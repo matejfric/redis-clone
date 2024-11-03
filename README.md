@@ -4,7 +4,12 @@
 
 - [ ] Implement the RESP protocol
 - [ ] Implement the Redis commands
+
+### Optional
+
 - [ ] [Redis pipelining](https://redis.io/docs/latest/develop/use/pipelining/)
+- [ ] [tokio codec](https://docs.rs/tokio-util/latest/tokio_util/codec/index.html)
+- [ ] [sharded db](https://tokio.rs/tokio/tutorial/shared-state#mutex-sharding)
 
 ## Sources
 

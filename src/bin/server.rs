@@ -1,68 +1,31 @@
-use bytes::Bytes;
-use std::io;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
-};
+use anyhow::Result;
+use tokio::net::TcpListener;
 
+use redis_clone::connection::Connection;
 use redis_clone::db::DB;
 
-async fn process_tcp_stream(socket: &mut TcpStream, db: DB) -> io::Result<()> {
-    let mut buffer = [0; 1024];
+// // TODO:
+// db.insert("apples".to_string(), Bytes::from("10"));
+// let apples = db.get("apples").unwrap();
+// // Print bytes as string
+// println!("Apples: {}", std::str::from_utf8(&apples).unwrap());
 
-    db.insert("apples".to_string(), Bytes::from("10"));
-
-    let apples = db.get("apples").unwrap();
-
-    // Print bytes as string
-    println!("Apples: {}", std::str::from_utf8(&apples).unwrap());
-
+async fn handle_client_connection(mut conn: Connection, db: DB) -> Result<()> {
     loop {
         // Read data from the client
-        let bytes_read = match socket.read(&mut buffer).await {
-            Ok(0) => {
-                println!("Connection closed by the client.");
-                break Ok(());
-            }
-            Ok(length) => length,
-            Err(e) => {
-                eprintln!("Failed to read from socket: {}", e);
-                break Err(e);
-            }
-        };
-
-        let request = &buffer[..bytes_read];
-
-        // Process the request line by line
-        let lines = request.split(|&c| c == b'\n');
-        for line in lines {
-            // Convert the line to a string
-            let line = match std::str::from_utf8(line) {
-                Ok(s) => s,
-                Err(_) => {
-                    eprintln!("Failed to convert line to UTF-8 string");
-                    break;
-                }
-            };
-            println!("Received: {:?}", line);
-            match line {
-                "PING\\r" => {
-                    socket
-                        .write_all(b"+PONG\r\n")
-                        .await
-                        .expect("Failed to write to socket");
-                }
-                _ => {
-                    socket
-                        .write_all(b"-ERROR\r\n")
-                        .await
-                        .expect("Failed to write to socket");
-                }
+        let frame = conn.read_frame().await?;
+        match frame {
+            None => break Ok(()),
+            Some(frame) => {
+                println!("Received: {:?}", frame);
             }
         }
     }
 }
 
+/// Connect via `redis-cli -h <hostname> -p <port>`
+/// (Stop redis-server first `sudo systemctl stop redis-server` or choose a custom port.)
+/// `echo -e "*2\r\n:5\r\n+hello\r\n" | nc 127.0.0.1 6379`
 #[tokio::main]
 async fn main() {
     let port = 6379; // Default Redis port
@@ -75,13 +38,13 @@ async fn main() {
     // The socket will be closed when the value is dropped.
     let listener = TcpListener::bind(format!("{}:{}", ip_address, port))
         .await
-        .expect("TCP bind failed");
+        .expect("TCP bind failed.");
 
     loop {
-        let (mut stream, address) = listener
+        let (stream, address) = listener
             .accept()
             .await
-            .expect("Failed to accept TCP connection");
+            .expect("Failed to accept TCP connection.");
 
         // Clone the handle to the hash map.
         let db = db.clone();
@@ -90,7 +53,8 @@ async fn main() {
         // Lifetime must be `'static` (i.e, no references to data owned outside of the task).
         // `move` transfers ownership to the task.
         tokio::spawn(async move {
-            match process_tcp_stream(&mut stream, db).await {
+            let connection = Connection::new(stream);
+            match handle_client_connection(connection, db).await {
                 Ok(_) => println!("Connection closed: {}", address),
                 Err(e) => eprintln!("Connection error: {}", e),
             };

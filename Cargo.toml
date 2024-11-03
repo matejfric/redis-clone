@@ -5,5 +5,8 @@ edition = "2021"
 authors = ["Matej Fric <matej.fric@vsb.cz>"]
 
 [dependencies]
-bytes = "1.7" # "Vec<u8> with shallow cloning"
-tokio = { version = "1.40", features = ["full"] } # async networking
+anyhow = "1.0.92" # Error handling
+atoi = "2.0.0" # Byte to number conversion
+bytes = "1.7" # Vec<u8> with shallow cloning and other helpful methods
+thiserror = "1.0.66" # Error handling
+tokio = { version = "1.40", features = ["full"] } # Async runtime
