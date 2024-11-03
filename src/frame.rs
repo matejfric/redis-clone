@@ -79,20 +79,15 @@ impl Frame {
                 ))))
             }
             b'*' => {
-                println!("Cursor position: {}", cursor.position());
+                // Example: `echo -e "*3\r\n:-78741\r\n+hello\r\n_\r\n" | nc 127.0.0.1 6379`
                 let crlf_index = seek_newline(cursor)?;
-                println!("Cursor position: {}", cursor.position());
                 let len_u8 = get_byte_slice(cursor, 1, crlf_index);
-                println!("Cursor position: {}", cursor.position());
                 let len = atoi::<usize>(len_u8).ok_or_else(|| {
                     RedisProtocolError::ConversionError(String::from_utf8_lossy(len_u8).to_string())
                 })?;
-                println!("Cursor position: {}", cursor.position());
                 let mut frames = Vec::with_capacity(len);
                 for _ in 0..len {
                     let frame = Frame::parse(cursor)?;
-                    println!("Cursor position: {}", cursor.position());
-                    println!("Frame: {:?}", frame);
                     frames.push(frame);
                 }
                 Ok(Frame::Array(frames))
@@ -151,16 +146,16 @@ fn get_byte_slice<'a>(cursor: &Cursor<&'a [u8]>, start: usize, end: usize) -> &'
 /// Returns a slice of bytes from the current position to the next newline
 /// without checking for extra `\n` or `\r` bytes.
 fn get_line<'a>(cursor: &mut Cursor<&'a [u8]>) -> Result<&'a [u8], RedisProtocolError> {
-    let mut index = 0;
+    let start = cursor.position() as usize;
     while cursor.has_remaining() {
         let byte = cursor.get_u8();
         if byte == b'\r' {
             if cursor.has_remaining() && cursor.get_u8() == b'\n' {
-                // Skip the initial byte `:`
-                return Ok(&cursor.get_ref()[1..=index]);
+                // -2 to exclude `\r\n`
+                let end = cursor.position() as usize - 2;
+                return Ok(&cursor.get_ref()[start..end]);
             }
         }
-        index += 1;
     }
     Err(RedisProtocolError::MissingNewline.into())
 }
