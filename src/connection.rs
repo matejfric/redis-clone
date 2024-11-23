@@ -7,8 +7,9 @@ use tokio::net::TcpStream;
 use crate::err::RedisProtocolError;
 use crate::frame::Frame;
 
-/// Inspired by https://tokio.rs/tokio/tutorial/framing
-
+/// Client connection to the Redis server. Handles reading and writing frames.
+///
+/// Inspired by https://tokio.rs/tokio/tutorial/framin
 pub struct Connection {
     stream: BufWriter<TcpStream>,
     buffer: BytesMut,
