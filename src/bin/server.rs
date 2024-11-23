@@ -1,4 +1,5 @@
 use tokio::net::TcpListener;
+use tokio::time::{timeout, Duration};
 
 use redis_clone::cmd::Command;
 use redis_clone::connection::Connection;
@@ -6,11 +7,26 @@ use redis_clone::db::DB;
 use redis_clone::err::RedisCommandError;
 use redis_clone::frame::Frame;
 
+const TIMEOUT_DURATION: Duration = Duration::from_secs(2);
+
 async fn handle_client_connection(mut conn: Connection, db: DB) -> anyhow::Result<()> {
     loop {
-        let frame = conn.read_frame().await?;
+        let frame = match timeout(TIMEOUT_DURATION, conn.read_frame()).await {
+            Ok(result) => result?,
+            Err(_) => {
+                log::warn!(
+                    "Client connection timed out after {} miliseconds",
+                    TIMEOUT_DURATION.as_millis()
+                );
+                break Ok(());
+            }
+        };
+
         match frame {
-            None => break Ok(()),
+            None => {
+                // Read 0, closing connection gracefully.
+                break Ok(());
+            }
             Some(frame) => {
                 log::debug!("Received: {:?}", frame);
 
@@ -50,6 +66,7 @@ async fn handle_client_connection(mut conn: Connection, db: DB) -> anyhow::Resul
 /// $ RUST_LOG=debug cargo run --bin server
 #[tokio::main]
 async fn main() {
+    // Initialize the logger.
     env_logger::init();
 
     let port = 6379; // Default Redis port
