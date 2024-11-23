@@ -1,52 +1,16 @@
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::sync::OnceCell;
-use tokio::time::sleep;
 use tokio::time::timeout;
 
 use redis_clone::RedisServer;
 
 const SERVER_ADDR: &str = "127.0.0.1";
-const SERVER_PORT: u16 = 6379;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
-const MAX_RETRIES: usize = 5;
 
-static SERVER: OnceCell<()> = OnceCell::const_new();
-
-async fn ensure_server_running() {
-    SERVER
-        .get_or_init(|| async {
-            if TcpStream::connect((SERVER_ADDR, SERVER_PORT)).await.is_ok() {
-                println!("Server already running at {}:{}", SERVER_ADDR, SERVER_PORT);
-                return;
-            }
-            println!(
-                "Starting new server instance at {}:{}",
-                SERVER_ADDR, SERVER_PORT
-            );
-
-            let server = RedisServer::new(SERVER_ADDR, SERVER_PORT)
-                .await
-                .expect("Failed to create Redis server.");
-
-            tokio::spawn(async move {
-                server.run().await.unwrap();
-            });
-
-            // Verify server is running by attempting to connect
-            for retry in 0..MAX_RETRIES {
-                if TcpStream::connect((SERVER_ADDR, SERVER_PORT)).await.is_ok() {
-                    println!("Server successfully started after {} retries", retry);
-                    return;
-                }
-                // Exponential backoff
-                sleep(Duration::from_millis(200 * retry as u64)).await;
-            }
-            panic!("Server failed to start after {} retries", MAX_RETRIES);
-        })
-        .await;
-}
+// Each test will have a separate server instance.
+static SERVER_PORT_COUNTER: AtomicU16 = AtomicU16::new(31_415);
 
 struct TestClient {
     stream: TcpStream,
@@ -54,15 +18,29 @@ struct TestClient {
 
 impl TestClient {
     async fn new() -> Self {
-        ensure_server_running().await;
+        let server_port = SERVER_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
+
+        let server = RedisServer::new(SERVER_ADDR, server_port)
+            .await
+            .expect("Failed to create Redis server.");
+
+        tokio::spawn(async move {
+            server.run().await.expect("Failed to run Redis server");
+        });
 
         let stream = timeout(
             CONNECTION_TIMEOUT,
-            TcpStream::connect((SERVER_ADDR, SERVER_PORT)),
+            TcpStream::connect((SERVER_ADDR, server_port)),
         )
         .await
         .expect("Connection timeout")
-        .expect("Failed to connect to Redis server");
+        .expect(
+            format!(
+                "Failed to connect to Redis server {}:{}",
+                SERVER_ADDR, server_port
+            )
+            .as_str(),
+        );
 
         TestClient { stream }
     }
@@ -75,13 +53,13 @@ impl TestClient {
         self.stream.flush().await.expect("Failed to flush");
     }
 
-    async fn read_exact(&mut self, n: usize) -> Vec<u8> {
-        let mut response = vec![0; n];
+    async fn assert_response(&mut self, expected: &[u8]) {
+        let mut response = vec![0; expected.len()];
         self.stream
             .read_exact(&mut response)
             .await
             .expect("Failed to read from server");
-        response
+        assert_eq!(expected, &response[..]);
     }
 }
 
@@ -89,7 +67,7 @@ impl TestClient {
 async fn get_before_set() {
     let mut client = TestClient::new().await;
     client.send("*2\r\n$3\r\nGET\r\n$5\r\nkey99\r\n").await;
-    assert_eq!(b"$-1\r\n", &client.read_exact(5).await[..]);
+    client.assert_response(b"$-1\r\n").await;
 }
 
 #[tokio::test]
@@ -100,11 +78,11 @@ async fn set_and_get_value() {
     client
         .send("*3\r\n$3\r\nSET\r\n$5\r\nhello\r\n$5\r\nworld\r\n")
         .await;
-    assert_eq!(b"+OK\r\n", &client.read_exact(5).await[..]);
+    client.assert_response(b"+OK\r\n").await;
 
     // Get the key
     client.send("*2\r\n$3\r\nGET\r\n$5\r\nhello\r\n").await;
-    assert_eq!(b"$5\r\nworld\r\n", &client.read_exact(11).await[..]);
+    client.assert_response(b"$5\r\nworld\r\n").await;
 }
 
 #[tokio::test]
@@ -115,17 +93,17 @@ async fn overwrite_key() {
     client
         .send("*3\r\n$3\r\nSET\r\n$4\r\nkey1\r\n$4\r\nval1\r\n")
         .await;
-    assert_eq!(b"+OK\r\n", &client.read_exact(5).await[..]);
+    client.assert_response(b"+OK\r\n").await;
 
     // Overwrite the key with a new value
     client
         .send("*3\r\n$3\r\nSET\r\n$4\r\nkey1\r\n$4\r\nval2\r\n")
         .await;
-    assert_eq!(b"+OK\r\n", &client.read_exact(5).await[..]);
+    client.assert_response(b"+OK\r\n").await;
 
     // Get the key
     client.send("*2\r\n$3\r\nGET\r\n$4\r\nkey1\r\n").await;
-    assert_eq!(b"$4\r\nval2\r\n", &client.read_exact(10).await[..]);
+    client.assert_response(b"$4\r\nval2\r\n").await;
 }
 
 #[tokio::test]
@@ -136,5 +114,5 @@ async fn ping_command() {
     client.send("*1\r\n$4\r\nPING\r\n").await;
 
     // Read PONG response
-    assert_eq!(b"+PONG\r\n", &client.read_exact(7).await[..]);
+    client.assert_response(b"+PONG\r\n").await;
 }
