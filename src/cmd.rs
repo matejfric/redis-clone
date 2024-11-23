@@ -1,12 +1,14 @@
+use bytes::Bytes;
+
+use crate::common::bytes_to_string;
 use crate::err::RedisCommandError;
 use crate::frame::Frame;
-use bytes::Bytes;
 
 #[derive(Debug)]
 pub enum Command {
     Get { key: String },
     Set { key: String, val: Bytes },
-    Ping,
+    Ping { msg: Option<String> },
     Unknown(String),
 }
 
@@ -21,16 +23,7 @@ impl Command {
                 }
 
                 // Get the command name
-                let command = match parts.remove(0) {
-                    Frame::Bulk(bytes) => String::from_utf8(bytes.to_vec()).map_err(|_| {
-                        RedisCommandError::InvalidUtf8("Invalid command name".to_string())
-                    })?,
-                    _ => {
-                        return Err(RedisCommandError::InvalidFrame(
-                            "Expected bulk string for command".to_string(),
-                        ))
-                    }
-                };
+                let command = Self::bulk_to_string(parts.remove(0))?;
 
                 match command.to_uppercase().as_str() {
                     "GET" => {
@@ -40,18 +33,7 @@ impl Command {
                                 parts.len()
                             )));
                         }
-                        let key = match parts.remove(0) {
-                            Frame::Bulk(bytes) => {
-                                String::from_utf8(bytes.to_vec()).map_err(|_| {
-                                    RedisCommandError::InvalidUtf8("Invalid key".to_string())
-                                })?
-                            }
-                            _ => {
-                                return Err(RedisCommandError::InvalidFrame(
-                                    "Expected bulk string for key".to_string(),
-                                ))
-                            }
-                        };
+                        let key = Self::bulk_to_string(parts.remove(0))?;
                         Ok(Command::Get { key })
                     }
                     "SET" => {
@@ -61,35 +43,47 @@ impl Command {
                                 parts.len()
                             )));
                         }
-                        let key = match parts.remove(0) {
-                            Frame::Bulk(bytes) => {
-                                String::from_utf8(bytes.to_vec()).map_err(|_| {
-                                    RedisCommandError::InvalidUtf8("Invalid key".to_string())
-                                })?
-                            }
-                            _ => {
-                                return Err(RedisCommandError::InvalidFrame(
-                                    "Expected bulk string for key".to_string(),
-                                ))
-                            }
-                        };
-                        let val = match parts.remove(0) {
-                            Frame::Bulk(bytes) => bytes,
-                            _ => {
-                                return Err(RedisCommandError::InvalidFrame(
-                                    "Expected bulk string for value".to_string(),
-                                ))
-                            }
-                        };
+                        let key = Self::bulk_to_string(parts.remove(0))?;
+                        let val = Self::bulk_to_bytes(parts.remove(0))?;
                         Ok(Command::Set { key, val })
                     }
-                    "PING" => Ok(Command::Ping),
+                    "PING" => {
+                        if parts.is_empty() {
+                            Ok(Command::Ping { msg: None })
+                        } else if parts.len() == 1 {
+                            let msg = Self::bulk_to_string(parts.remove(0))?;
+                            Ok(Command::Ping { msg: Some(msg) })
+                        } else {
+                            return Err(RedisCommandError::WrongNumberOfArguments(format!(
+                                "PING expects zero or one argument, got {}",
+                                parts.len()
+                            )));
+                        }
+                    }
                     _ => Ok(Command::Unknown(command)),
                 }
             }
-            Frame::Simple(s) if s.to_uppercase() == "PING" => Ok(Command::Ping),
+            Frame::Simple(s) if s.to_uppercase() == "PING" => Ok(Command::Ping { msg: None }),
             _ => Err(RedisCommandError::InvalidFrame(
                 "Expected array frame".to_string(),
+            )),
+        }
+    }
+
+    fn bulk_to_string(frame: Frame) -> anyhow::Result<String, RedisCommandError> {
+        match frame {
+            Frame::Bulk(bytes) => bytes_to_string(bytes),
+            _ => Err(RedisCommandError::InvalidFrame(
+                "Expected bulk string".to_string(),
+            )),
+        }
+    }
+
+    fn bulk_to_bytes(frame: Frame) -> anyhow::Result<Bytes, RedisCommandError> {
+        match frame {
+            Frame::Bulk(bytes) => Ok(bytes),
+            _ => Err(RedisCommandError::InvalidFrame(
+                "Expected bulk string".to_string(),
             )),
         }
     }

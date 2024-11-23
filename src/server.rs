@@ -6,11 +6,10 @@ use tokio::time::{timeout, Duration};
 
 use crate::cmd::Command;
 use crate::connection::Connection;
+use crate::constants::TIMEOUT_DURATION;
 use crate::db::DB;
 use crate::err::RedisCommandError;
 use crate::frame::Frame;
-
-const TIMEOUT_DURATION: Duration = Duration::from_secs(5);
 
 pub struct RedisServer {
     listener: TcpListener,
@@ -172,7 +171,10 @@ impl RedisServer {
                 db.set(key, val);
                 Frame::Simple("OK".to_string())
             }
-            Command::Ping => Frame::Simple("PONG".to_string()),
+            Command::Ping { msg } => match msg {
+                Some(msg) => Frame::Simple(msg),
+                None => Frame::Simple("PONG".to_string()),
+            },
             Command::Unknown(cmd) => Frame::Error(format!(
                 "ERR {}",
                 RedisCommandError::InvalidCommand(cmd.to_string())

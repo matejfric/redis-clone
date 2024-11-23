@@ -116,3 +116,20 @@ async fn ping_command() {
     // Read PONG response
     client.assert_response(b"+PONG\r\n").await;
 }
+
+#[tokio::test]
+async fn ping_with_message_non_ascii() {
+    let mut client = TestClient::new().await;
+
+    let msg = "Hello, Redis! 🚀";
+
+    // Send PING with message
+    client
+        .send(format!("*2\r\n$4\r\nPING\r\n${}\r\n{}\r\n", msg.bytes().len(), msg).as_str())
+        .await;
+
+    // Read PONG response
+    client
+        .assert_response(format!("+{}\r\n", msg).as_bytes())
+        .await;
+}
