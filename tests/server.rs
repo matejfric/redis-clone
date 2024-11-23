@@ -12,12 +12,12 @@ const SERVER_PORT: u16 = 6379;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_RETRIES: usize = 5;
 
-static SERVER_INIT: OnceCell<()> = OnceCell::const_new();
+static SERVER: OnceCell<()> = OnceCell::const_new();
 
 async fn ensure_server_running() {
-    SERVER_INIT
+    SERVER
         .get_or_init(|| async {
-            if let Ok(_) = TcpStream::connect(format!("{}:{}", SERVER_ADDR, SERVER_PORT)).await {
+            if let Ok(_) = TcpStream::connect((SERVER_ADDR, SERVER_PORT)).await {
                 println!("Server already running at {}:{}", SERVER_ADDR, SERVER_PORT);
                 return;
             }
