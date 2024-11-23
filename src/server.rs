@@ -54,6 +54,16 @@ impl RedisServer {
 
         let mut shutdown_rx = self.shutdown.subscribe();
 
+        // Setup Ctrl+C signal to shutdown the server.
+        let shutdown_handle = self.get_shutdown_handle();
+        tokio::spawn(async move {
+            if let Err(e) = tokio::signal::ctrl_c().await {
+                log::error!("Failed to listen for Ctrl+C: {}", e);
+                return;
+            }
+            let _ = shutdown_handle.send(());
+        });
+
         loop {
             let accept = self.accept_connection();
             tokio::select! {
@@ -91,10 +101,11 @@ impl RedisServer {
     }
 
     /// Get a handle to the shutdown signal.
-    pub fn get_shutdown_handle(&self) -> broadcast::Sender<()> {
+    fn get_shutdown_handle(&self) -> broadcast::Sender<()> {
         self.shutdown.clone()
     }
 
+    /// Accept incoming connection.
     async fn accept_connection(&self) -> anyhow::Result<(Connection, SocketAddr)> {
         let (socket, addr) = self.listener.accept().await?;
         log::info!("Accepted connection from: {}", addr);
