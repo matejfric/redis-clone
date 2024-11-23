@@ -53,7 +53,25 @@ The difference between simple strings and errors in RESP is that clients should 
 ## 3. Progress
 
 - [x] Implement RESP protocol parser and serializer for selected types.
+  - [x] Simple strings
+  - [x] Errors
+  - [x] Integers
+  - [x] Bulk strings
+  - [x] Arrays
+  - [x] Null
+  - [ ] Boolean
+  - [ ] Map (dictionary)
+
 - [x] Implement selected Redis commands.
+  - [x] `PING`
+  - [x] `SET`
+  - [x] `GET`
+  - [ ] `DEL`
+  - [ ] `INCR`
+  - [ ] `DECR`
+  - [ ] `EXISTS`
+  - [ ] `FLUSH`
+  - [ ] `KEYS`
 
 ### 3.1. Optional
 
@@ -64,4 +82,5 @@ The difference between simple strings and errors in RESP is that clients should 
 ## 4. Sources
 
 - [Redis protocol specification](https://redis.io/docs/latest/develop/reference/protocol-spec/)
+- [Redis commands](https://redis.io/docs/latest/commands/)
 - [Tokio tutorial](https://tokio.rs/tokio/tutorial)
