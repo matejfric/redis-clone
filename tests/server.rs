@@ -10,6 +10,8 @@ use redis_clone::RedisServer;
 const SERVER_ADDR: &str = "127.0.0.1";
 const SERVER_PORT: u16 = 6379;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
+const MAX_RETRIES: usize = 5;
+
 static SERVER_INIT: OnceCell<()> = OnceCell::const_new();
 
 async fn ensure_server_running() {
@@ -28,37 +30,20 @@ async fn ensure_server_running() {
                 .await
                 .expect("Failed to create Redis server.");
 
-            // Spawn the server in a separate thread
-            // (tokio::spawn doesn't seem to work in tests there must be a race condition,
-            //  having the server turned on before running the tests works fine)
-
-            // tokio::spawn(async move {
-            //     server.run().await.unwrap();
-            // });
-
-            std::thread::spawn(move || {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(async move {
-                        server.run().await.unwrap();
-                    });
+            tokio::spawn(async move {
+                server.run().await.unwrap();
             });
 
             // Verify server is running by attempting to connect
-            let max_retries = 5;
-            let mut retries = 0;
-            while retries < max_retries {
+            for retry in 0..MAX_RETRIES {
                 if TcpStream::connect((SERVER_ADDR, SERVER_PORT)).await.is_ok() {
+                    println!("Server successfully started after {} retries", retry);
                     return;
                 }
-                retries += 1;
-
                 // Exponential backoff
-                sleep(Duration::from_millis(200 * retries)).await;
+                sleep(Duration::from_millis(200 * retry as u64)).await;
             }
-            panic!("Server failed to start after {} retries", max_retries);
+            panic!("Server failed to start after {} retries", MAX_RETRIES);
         })
         .await;
 }
@@ -70,6 +55,7 @@ struct TestClient {
 impl TestClient {
     async fn new() -> Self {
         ensure_server_running().await;
+
         let stream = timeout(
             CONNECTION_TIMEOUT,
             TcpStream::connect((SERVER_ADDR, SERVER_PORT)),
