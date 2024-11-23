@@ -1,5 +1,7 @@
 # Simple Redis Clone
 
+[![codecov](https://codecov.io/github/matejfric/redis-clone/graph/badge.svg?token=5MVXON09TG)](https://codecov.io/github/matejfric/redis-clone)
+
 ## 1. Usage
 
 Start the server with `cargo run`:
