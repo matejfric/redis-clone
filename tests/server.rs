@@ -17,7 +17,7 @@ static SERVER: OnceCell<()> = OnceCell::const_new();
 async fn ensure_server_running() {
     SERVER
         .get_or_init(|| async {
-            if let Ok(_) = TcpStream::connect((SERVER_ADDR, SERVER_PORT)).await {
+            if TcpStream::connect((SERVER_ADDR, SERVER_PORT)).await.is_ok() {
                 println!("Server already running at {}:{}", SERVER_ADDR, SERVER_PORT);
                 return;
             }

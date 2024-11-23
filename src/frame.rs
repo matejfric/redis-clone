@@ -21,7 +21,7 @@ pub enum Frame {
 impl Frame {
     pub fn is_parsable(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolError> {
         if !cursor.has_remaining() {
-            return Err(RedisProtocolError::NotEnoughData.into());
+            return Err(RedisProtocolError::NotEnoughData);
         }
         match cursor.get_u8() {
             b'+' | b'-' | b':' | b'_' => has_newline(cursor),
@@ -43,7 +43,7 @@ impl Frame {
             }
             byte => {
                 log::debug!("Parse check failed, buffer state: {:?}", cursor);
-                Err(RedisProtocolError::UnsupportedFrame(byte).into())
+                Err(RedisProtocolError::UnsupportedFrame(byte))
             }
         }
     }
@@ -110,7 +110,7 @@ impl Frame {
                 }
                 Ok(Frame::Array(frames))
             }
-            byte => Err(RedisProtocolError::UnsupportedFrame(byte).into()),
+            byte => Err(RedisProtocolError::UnsupportedFrame(byte)),
         }
     }
 }
@@ -126,15 +126,15 @@ fn seek_newline(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<usize, RedisProtoc
             if cursor.has_remaining() && cursor.get_u8() == b'\n' {
                 return Ok(index);
             } else {
-                return Err(RedisProtocolError::ExcessiveNewline.into());
+                return Err(RedisProtocolError::ExcessiveNewline);
             }
         }
         if byte == b'\n' {
-            return Err(RedisProtocolError::ExcessiveNewline.into());
+            return Err(RedisProtocolError::ExcessiveNewline);
         }
         index += 1;
     }
-    Err(RedisProtocolError::NotEnoughData.into())
+    Err(RedisProtocolError::NotEnoughData)
 }
 
 /// Returns `Ok` if a newline character was found.
@@ -146,14 +146,14 @@ fn has_newline(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolEr
             if cursor.has_remaining() && cursor.get_u8() == b'\n' {
                 return Ok(());
             } else {
-                return Err(RedisProtocolError::ExcessiveNewline.into());
+                return Err(RedisProtocolError::ExcessiveNewline);
             }
         }
         if byte == b'\n' {
-            return Err(RedisProtocolError::ExcessiveNewline.into());
+            return Err(RedisProtocolError::ExcessiveNewline);
         }
     }
-    Err(RedisProtocolError::NotEnoughData.into())
+    Err(RedisProtocolError::NotEnoughData)
 }
 
 /// Returns a slice of bytes from `start` to `end` (inclusive).
@@ -167,13 +167,11 @@ fn get_line<'a>(cursor: &mut Cursor<&'a [u8]>) -> anyhow::Result<&'a [u8], Redis
     let start = cursor.position() as usize;
     while cursor.has_remaining() {
         let byte = cursor.get_u8();
-        if byte == b'\r' {
-            if cursor.has_remaining() && cursor.get_u8() == b'\n' {
-                // -2 to exclude `\r\n`
-                let end = cursor.position() as usize - 2;
-                return Ok(&cursor.get_ref()[start..end]);
-            }
+        if byte == b'\r' && cursor.has_remaining() && cursor.get_u8() == b'\n' {
+            // -2 to exclude `\r\n`
+            let end = cursor.position() as usize - 2;
+            return Ok(&cursor.get_ref()[start..end]);
         }
     }
-    Err(RedisProtocolError::NotEnoughData.into())
+    Err(RedisProtocolError::NotEnoughData)
 }
