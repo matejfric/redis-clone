@@ -7,7 +7,7 @@ use tokio::net::TcpStream;
 use crate::err::RedisProtocolError;
 use crate::frame::Frame;
 
-// Based on https://tokio.rs/tokio/tutorial/framing
+/// Inspired by https://tokio.rs/tokio/tutorial/framing
 
 pub struct Connection {
     stream: BufWriter<TcpStream>,
@@ -140,7 +140,7 @@ impl Connection {
                 // Return the parsed frame to the caller.
                 Ok(Some(frame))
             }
-            Err(RedisProtocolError::MissingNewline) => {
+            Err(RedisProtocolError::NotEnoughData) => {
                 // Not enough data has been buffered to parse a frame.
                 Ok(None)
             }
