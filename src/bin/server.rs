@@ -16,11 +16,15 @@ async fn main() -> anyhow::Result<()> {
 
     let server = RedisServer::new("127.0.0.1", 6379).await?;
 
-    log::info!(
-        "Starting Redis server on {}:{}",
-        server.address(),
-        server.port()
-    );
+    // Setup Ctrl+C signal to shutdown the server.
+    let shutdown_handle = server.get_shutdown_handle();
+    tokio::spawn(async move {
+        if let Err(e) = tokio::signal::ctrl_c().await {
+            log::error!("Failed to listen for Ctrl+C: {}", e);
+            return;
+        }
+        let _ = shutdown_handle.send(());
+    });
 
     server.run().await?;
 
