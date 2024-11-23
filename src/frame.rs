@@ -61,22 +61,29 @@ impl Frame {
                 Ok(Frame::Integer(num))
             }
             b'$' => {
-                if cursor.get_u8() == b'-' {
-                    return Ok(Frame::Null);
-                }
-                let crlf_index = seek_newline(cursor)?;
-                let len_u8 = get_byte_slice(cursor, 1, crlf_index);
+                let start = cursor.position() as usize;
+                let crlf_index = start + seek_newline(cursor)?;
+                let len_u8 = get_byte_slice(cursor, start, crlf_index);
                 let len = atoi::<i64>(len_u8).ok_or_else(|| {
                     RedisProtocolError::ConversionError(String::from_utf8_lossy(len_u8).to_string())
                 })?;
+
+                log::debug!("Parsing bulk string with length: {}", len);
+
                 if len == -1 {
                     return Ok(Frame::Null);
                 }
+
                 let data_start = cursor.position() as usize;
-                let data_end = data_start + len as usize;
-                Ok(Frame::Bulk(Bytes::copy_from_slice(get_byte_slice(
+                let data_end = data_start + len as usize - 1;
+
+                // Read the data and advance the cursor
+                let data = Frame::Bulk(Bytes::copy_from_slice(get_byte_slice(
                     cursor, data_start, data_end,
-                ))))
+                )));
+                cursor.advance(len as usize + 2);
+
+                Ok(data)
             }
             b'*' => {
                 // Example: `echo -e "*3\r\n:-78741\r\n+hello\r\n_\r\n" | nc 127.0.0.1 6379`
