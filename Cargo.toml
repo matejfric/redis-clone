@@ -8,5 +8,7 @@ authors = ["Matej Fric <matej.fric@vsb.cz>"]
 anyhow = "1.0.92" # Error handling
 atoi = "2.0.0" # Byte to number conversion
 bytes = "1.7" # Vec<u8> with shallow cloning and other helpful methods
+env_logger = "0.11.5" # Logging
+log = "0.4.22" # Logging
 thiserror = "1.0.66" # Error handling
 tokio = { version = "1.40", features = ["full"] } # Async runtime
