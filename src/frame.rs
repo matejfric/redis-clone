@@ -19,15 +19,29 @@ pub enum Frame {
 }
 
 impl Frame {
+    /// Check if the buffer contains a parsable frame.
+    ///
+    /// Returns `Ok` if the buffer contains a parsable frame.
     pub fn is_parsable(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolError> {
         if !cursor.has_remaining() {
             return Err(RedisProtocolError::NotEnoughData);
         }
         match cursor.get_u8() {
-            b'+' | b'-' | b':' | b'_' => has_newline(cursor),
+            b'+' | b'-' | b':' | b'_' => has_crlf_with_checks(cursor),
             b'$' => {
-                has_newline(cursor)?; // length
-                has_newline(cursor) // bytes
+                let crlf_index = seek_newline(cursor)?;
+                let len_u8 = get_byte_slice(cursor, 1, crlf_index);
+                let len = atoi::<i64>(len_u8).ok_or_else(|| {
+                    RedisProtocolError::ConversionError(String::from_utf8_lossy(len_u8).to_string())
+                })?;
+
+                if len == -1 {
+                    // Null bulk string
+                    Ok(())
+                } else {
+                    // Check that the buffer has enough data
+                    has_crlf(cursor)
+                }
             }
             b'*' => {
                 // Array
@@ -122,24 +136,18 @@ fn seek_newline(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<usize, RedisProtoc
     let mut index = 0;
     while cursor.has_remaining() {
         let byte = cursor.get_u8();
-        if byte == b'\r' {
-            if cursor.has_remaining() && cursor.get_u8() == b'\n' {
-                return Ok(index);
-            } else {
-                return Err(RedisProtocolError::ExcessiveNewline);
-            }
-        }
-        if byte == b'\n' {
-            return Err(RedisProtocolError::ExcessiveNewline);
+        if byte == b'\r' && cursor.has_remaining() && cursor.get_u8() == b'\n' {
+            return Ok(index);
         }
         index += 1;
     }
     Err(RedisProtocolError::NotEnoughData)
 }
 
-/// Returns `Ok` if a newline character was found.
+/// Returns `Ok` if a closing CRLF character was found.
+/// Checks for extra `\n` or `\r` bytes.
 /// The `cursor` is advanced to the next byte after the newline.
-fn has_newline(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolError> {
+fn has_crlf_with_checks(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolError> {
     while cursor.has_remaining() {
         let byte = cursor.get_u8();
         if byte == b'\r' {
@@ -151,6 +159,18 @@ fn has_newline(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolEr
         }
         if byte == b'\n' {
             return Err(RedisProtocolError::ExcessiveNewline);
+        }
+    }
+    Err(RedisProtocolError::NotEnoughData)
+}
+
+/// Returns `Ok` if a closing CRLF character was found.
+/// The `cursor` is advanced to the next byte after the newline.
+fn has_crlf(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolError> {
+    while cursor.has_remaining() {
+        let byte = cursor.get_u8();
+        if byte == b'\r' && cursor.has_remaining() && cursor.get_u8() == b'\n' {
+            return Ok(());
         }
     }
     Err(RedisProtocolError::NotEnoughData)
