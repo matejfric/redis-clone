@@ -34,8 +34,12 @@ impl TestClient {
         )
         .await
         .expect("Connection timeout")
-        .unwrap_or_else(|_| panic!("Failed to connect to Redis server {}:{}",
-                SERVER_ADDR, server_port));
+        .unwrap_or_else(|_| {
+            panic!(
+                "Failed to connect to Redis server {}:{}",
+                SERVER_ADDR, server_port
+            )
+        });
 
         TestClient { stream }
     }

@@ -174,10 +174,7 @@ mod tests {
         // Test excessive newline in bulk string
         let data = b"$3\r\na\nb\r\n";
         let mut cursor = Cursor::new(&data[..]);
-        assert!(
-            Frame::is_parsable(&mut cursor).is_ok(),
-            "Expected Ok"
-        );
+        assert!(Frame::is_parsable(&mut cursor).is_ok(), "Expected Ok");
     }
 
     #[test]
