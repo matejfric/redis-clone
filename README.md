@@ -79,7 +79,13 @@ The difference between simple strings and errors in RESP is that clients should 
 - [ ] [Tokio codec](https://docs.rs/tokio-util/latest/tokio_util/codec/index.html)
 - [ ] [Sharded DB](https://tokio.rs/tokio/tutorial/shared-state#mutex-sharding)
 
-## 4. Sources
+## 4. Testing
+
+Run tests with `cargo test`.
+Run tests on a single thread with `cargo test -- --test-threads=1`.
+Run a single test with `cargo test --test <test_file> [<test_name>]`.
+
+## 5. Sources
 
 - [Redis protocol specification](https://redis.io/docs/latest/develop/reference/protocol-spec/)
 - [Redis commands](https://redis.io/docs/latest/commands/)
