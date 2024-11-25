@@ -168,8 +168,7 @@ fn has_crlf_with_checks(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisP
 /// The `cursor` is advanced to the next byte after the newline.
 fn has_crlf(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolError> {
     while cursor.has_remaining() {
-        let byte = cursor.get_u8();
-        if byte == b'\r' && cursor.has_remaining() && cursor.get_u8() == b'\n' {
+        if is_crlf(cursor) {
             return Ok(());
         }
     }
@@ -186,12 +185,15 @@ fn get_byte_slice<'a>(cursor: &Cursor<&'a [u8]>, start: usize, end: usize) -> &'
 fn get_line<'a>(cursor: &mut Cursor<&'a [u8]>) -> anyhow::Result<&'a [u8], RedisProtocolError> {
     let start = cursor.position() as usize;
     while cursor.has_remaining() {
-        let byte = cursor.get_u8();
-        if byte == b'\r' && cursor.has_remaining() && cursor.get_u8() == b'\n' {
+        if is_crlf(cursor) {
             // -2 to exclude `\r\n`
             let end = cursor.position() as usize - 2;
             return Ok(&cursor.get_ref()[start..end]);
         }
     }
     Err(RedisProtocolError::NotEnoughData)
+}
+
+fn is_crlf(cursor: &mut Cursor<&[u8]>) -> bool {
+    cursor.get_u8() == b'\r' && cursor.has_remaining() && cursor.get_u8() == b'\n'
 }
