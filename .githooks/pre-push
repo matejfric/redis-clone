@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Pre-push hook to run tests before committing.
+
+# Check if cargo is installed
+if ! command -v cargo &> /dev/null; then
+    echo "cargo is not installed"
+    exit 1
+fi
+
+# Store the current working directory
+CURRENT_DIR=$(pwd)
+
+# Find the root of the Git repository
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# Change to the repository root
+cd "$REPO_ROOT" || exit 1
+
+# Run tests
+echo "Running cargo tests..."
+if ! cargo test; then
+    echo "Tests failed. Please fix before committing."
+    cd "$CURRENT_DIR"
+    exit 1
+fi
+
+echo "Running cargo tests on a single thread..."
+if ! cargo test -- --test-threads 1; then
+    echo "Tests failed. Please fix before committing."
+    cd "$CURRENT_DIR"
+    exit 1
+fi
+
+# Return to the original directory
+cd "$CURRENT_DIR"
+
+echo "Tests passed successfully."
+exit 0

@@ -86,7 +86,15 @@ Run tests with `cargo test`.
 Run tests on a single thread with `cargo test -- --test-threads=1`.
 Run a single test with `cargo test --test <test_file> [<test_name>]`.
 
-## 5. Sources
+## 5. Contributing
+
+Please setup pre-commit hooks with the provided script:
+
+```sh
+sh setup-precommit-hooks.sh 
+```
+
+## 6. Sources
 
 - [Redis protocol specification](https://redis.io/docs/latest/develop/reference/protocol-spec/)
 - [Redis commands](https://redis.io/docs/latest/commands/)

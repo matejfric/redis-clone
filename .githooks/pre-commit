@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Pre-commit hook to run Cargo Fmt and Clippy before committing.
+
+# Check if cargo fmt and cargo clippy are installed
+if ! command -v rustfmt &> /dev/null; then
+    echo "rustfmt is not installed. Please install it with 'rustup component add rustfmt'"
+    exit 1
+fi
+
+if ! command -v cargo-clippy &> /dev/null; then
+    echo "cargo-clippy is not installed. Please install it with 'rustup component add clippy'"
+    exit 1
+fi
+
+# Store the current working directory
+CURRENT_DIR=$(pwd)
+
+# Find the root of the Git repository
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# Change to the repository root
+cd "$REPO_ROOT" || exit 1
+
+# Run Cargo Fmt check
+echo "Running Cargo Fmt Check..."
+if ! cargo fmt -- --check; then
+    echo "Formatting issues found. Please run 'cargo fmt' to fix formatting."
+    cd "$CURRENT_DIR"
+    exit 1
+fi
+
+# Run Clippy on the entire project
+echo "Running Cargo Clippy..."
+if ! cargo clippy --all-targets --all-features -- -D warnings; then
+    echo "Clippy found issues. Please fix the warnings before committing."
+    cd "$CURRENT_DIR"
+    exit 1
+fi
+
+# Return to the original directory
+cd "$CURRENT_DIR"
+
+echo "Fmt and Clippy passed successfully."
+exit 0
