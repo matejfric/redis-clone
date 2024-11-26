@@ -308,3 +308,38 @@ async fn increment_command() {
     client.send_incr("key1337").await;
     client.assert_response(b":1\r\n").await;
 }
+
+#[tokio::test]
+async fn increment_non_integer() {
+    env_logger::init();
+
+    let mut client = TestClient::new().await;
+
+    // Set a non-integer value
+    client.set("key", "value").await;
+    client.send_incr("key").await;
+    let expected_err = std::str::from_utf8(b"value")
+        .unwrap()
+        .parse::<i64>()
+        .unwrap_err();
+    client
+        .assert_response(format!("-ERR {expected_err}\r\n").as_bytes())
+        .await;
+}
+
+#[tokio::test]
+async fn increment_overflow() {
+    let mut client = TestClient::new().await;
+
+    let value = i64::MAX - 1;
+    client.set("key", value.to_string().as_str()).await;
+    client.send_incr("key").await;
+    client
+        .assert_response(format!(":{}\r\n", value + 1).as_bytes())
+        .await;
+    client.send_incr("key").await;
+    let expected_err = "Integer overflow";
+    client
+        .assert_response(format!("-ERR {expected_err}\r\n").as_bytes())
+        .await;
+}

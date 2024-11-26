@@ -1,6 +1,7 @@
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use bytes::Bytes;
 use std::collections::HashMap;
+use std::str;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Redis cache database shared between tasks and threads.
@@ -74,9 +75,13 @@ impl DB {
     pub fn increment(&self, key: &str) -> anyhow::Result<Bytes> {
         let mut db = self.get_lock();
         let value = db.entry(key.to_string()).or_insert(Bytes::from("0"));
-        let new_value = match std::str::from_utf8(value) {
-            Ok(s) => s.parse::<i64>()? + 1,
-            Err(_) => bail!("Cannot increment non-integer value."),
+        let new_value = match str::from_utf8(value) {
+            Ok(s) => s
+                .parse::<i64>()
+                .map_err(|e| anyhow!(e))?
+                .checked_add(1)
+                .ok_or_else(|| anyhow!("Integer overflow"))?,
+            Err(e) => bail!(e),
         };
         let value = Bytes::from(new_value.to_string());
         // We cannot use `self.set` here, because we would try to acquire the database lock twice.

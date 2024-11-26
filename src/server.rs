@@ -186,7 +186,10 @@ impl RedisServer {
                             Frame::Error("ERR value is not an integer or out of range".to_string())
                         }
                     },
-                    Err(e) => Frame::Error(format!("ERR {}", e)),
+                    Err(e) => {
+                        log::debug!("Error incrementing key: {}", e);
+                        Frame::Error(format!("ERR {}", e))
+                    }
                 }
             }
             Command::FlushDB => {
