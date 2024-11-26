@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context};
 use bytes::{Buf, BytesMut};
 use std::io::Cursor;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
@@ -26,7 +26,7 @@ impl Connection {
     /// Read a frame from the connection.
     ///
     /// Returns `None` if EOF is reached
-    pub async fn read_frame(&mut self) -> Result<Option<Frame>> {
+    pub async fn read_frame(&mut self) -> anyhow::Result<Option<Frame>> {
         loop {
             // Attempt to parse a frame from the buffered data. If
             // enough data has been buffered, the frame is
@@ -55,7 +55,7 @@ impl Connection {
     }
 
     /// Write a frame to the connection.
-    pub async fn write_frame(&mut self, frame: &Frame) -> Result<()> {
+    pub async fn write_frame(&mut self, frame: &Frame) -> anyhow::Result<()> {
         match frame {
             Frame::Array(values) => {
                 self.stream.write_u8(b'*').await?;
@@ -77,7 +77,7 @@ impl Connection {
             .context("Failed to flush the stream.")
     }
 
-    async fn write_value(&mut self, frame: &Frame) -> Result<()> {
+    async fn write_value(&mut self, frame: &Frame) -> anyhow::Result<()> {
         match frame {
             Frame::Simple(value) => {
                 self.stream.write_u8(b'+').await?;
@@ -112,7 +112,7 @@ impl Connection {
     }
 
     /// Parse a frame from the buffered data.
-    pub fn parse_frame(&mut self) -> Result<Option<Frame>> {
+    pub fn parse_frame(&mut self) -> anyhow::Result<Option<Frame>> {
         let mut buf = Cursor::new(&self.buffer[..]);
 
         // Check if enough data has been buffered to parse a single frame.
@@ -132,22 +132,10 @@ impl Connection {
 
                 // Discard the parsed data from the read buffer.
                 self.buffer.advance(frame_len);
-                if !self.buffer.is_empty() {
-                    // Edge case when the request has a missing `\n` after `\r`.
-                    // Not the cleanest way :/
-                    self.buffer.clear();
-                }
 
-                // Return the parsed frame to the caller.
                 Ok(Some(frame))
             }
-            Err(RedisProtocolError::NotEnoughData) => {
-                // Not enough data has been buffered to parse a frame.
-                Ok(None)
-            }
-
-            // Other RESP error representing an invalid frame.
-            // Connection to the client should be terminated.
+            Err(RedisProtocolError::NotEnoughData) => Ok(None),
             Err(e) => Err(e.into()),
         }
     }
