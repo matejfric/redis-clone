@@ -1,3 +1,4 @@
+use core::str;
 use std::net::SocketAddr;
 
 use tokio::net::TcpListener;
@@ -175,6 +176,42 @@ impl RedisServer {
                 Some(msg) => Frame::Simple(msg),
                 None => Frame::Simple("PONG".to_string()),
             },
+            Command::Increment { key } => {
+                log::debug!("Incrementing key: {}", key);
+                match db.increment(&key) {
+                    // Reading bytes from DB should be safe
+                    Ok(value) => match unsafe { str::from_utf8_unchecked(&value).parse::<i64>() } {
+                        Ok(num) => Frame::Integer(num),
+                        Err(_) => {
+                            Frame::Error("ERR value is not an integer or out of range".to_string())
+                        }
+                    },
+                    Err(e) => Frame::Error(format!("ERR {}", e)),
+                }
+            }
+            Command::FlushDB => {
+                db.flush();
+                Frame::Simple("OK".to_string())
+            }
+            Command::Del { keys } => {
+                let mut count = 0;
+                for key in keys {
+                    if db.remove(&key).is_some() {
+                        count += 1;
+                    }
+                }
+                Frame::Integer(count)
+            }
+            Command::Exists { keys } => {
+                let mut count = 0;
+                for key in keys {
+                    if db.exists(key.as_str()) {
+                        count += 1;
+                    }
+                }
+                Frame::Integer(count)
+            }
+            Command::DBSize => Frame::Integer(db.len() as i64),
             Command::Unknown(cmd) => Frame::Error(format!(
                 "ERR {}",
                 RedisCommandError::InvalidCommand(cmd.to_string())

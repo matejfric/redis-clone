@@ -66,11 +66,11 @@ The difference between simple strings and errors in RESP is that clients should 
   - [x] `PING`
   - [x] `SET`
   - [x] `GET`
-  - [ ] `DEL`
-  - [ ] `INCR`
-  - [ ] `DECR`
-  - [ ] `EXISTS`
-  - [ ] `FLUSH`
+  - [x] `DEL`
+  - [x] `INCR`
+  - [x] `EXISTS`
+  - [x] `FLUSHDB`
+  - [x] `DBSIZE`
   - [ ] `KEYS`
 
 ### 3.1. Optional
@@ -78,6 +78,7 @@ The difference between simple strings and errors in RESP is that clients should 
 - [ ] [Redis pipelining](https://redis.io/docs/latest/develop/use/pipelining/)
 - [ ] [Tokio codec](https://docs.rs/tokio-util/latest/tokio_util/codec/index.html)
 - [ ] [Sharded DB](https://tokio.rs/tokio/tutorial/shared-state#mutex-sharding)
+- [ ] [LOLWUT](https://redis.io/commands/lolwut)
 
 ## 4. Testing
 

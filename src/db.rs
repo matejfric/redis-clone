@@ -1,7 +1,7 @@
 use anyhow::bail;
 use bytes::Bytes;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Redis cache database shared between tasks and threads.
 /// Inspired by: https://tokio.rs/tokio/tutorial/shared-state
@@ -28,57 +28,59 @@ impl DB {
             data: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+    fn get_lock(&self) -> MutexGuard<HashMap<String, Bytes>> {
+        self.data.lock().unwrap()
+    }
     /// Set a key-value pair in the database.
     pub fn set(&self, key: String, value: Bytes) {
-        let mut db = self.data.lock().unwrap();
+        let mut db = self.get_lock();
         db.insert(key, value);
     }
     /// Get a value from the database.
     pub fn get(&self, key: &str) -> Option<Bytes> {
-        let db = self.data.lock().unwrap();
+        let db = self.get_lock();
         db.get(key).cloned()
+    }
+    /// Check if a key exists in the database.
+    pub fn exists(&self, key: &str) -> bool {
+        let db = self.get_lock();
+        db.contains_key(key)
     }
     /// Remove a key from the database.
     pub fn remove(&self, key: &str) -> Option<Bytes> {
-        let mut db = self.data.lock().unwrap();
+        let mut db = self.get_lock();
         db.remove(key)
     }
     /// Get the number of key-value pairs in the database.
     pub fn len(&self) -> usize {
-        let db = self.data.lock().unwrap();
+        let db = self.get_lock();
         db.len()
     }
-    /// Check if the database is empty.
     pub fn is_empty(&self) -> bool {
-        let db = self.data.lock().unwrap();
-        db.is_empty()
+        self.len() == 0
     }
     /// Clear the database.
     pub fn flush(&self) {
-        let mut db = self.data.lock().unwrap();
-        db.clear();
+        let mut db = self.get_lock();
+        db.clear(); // Remove all key-value pairs.
+        db.shrink_to_fit(); // Free up unused memory.
     }
     /// Get all the keys in the database.
     pub fn keys(&self) -> Vec<String> {
-        let db = self.data.lock().unwrap();
+        let db = self.get_lock();
         db.keys().cloned().collect()
-    }
-    /// Get all the values in the database.
-    pub fn values(&self) -> Vec<Bytes> {
-        let db = self.data.lock().unwrap();
-        db.values().cloned().collect()
     }
     /// Increment a value of key-value pair in the database.
     pub fn increment(&self, key: &str) -> anyhow::Result<Bytes> {
-        // TODO: This is extremely inefficient.
-        let mut db = self.data.lock().unwrap();
+        let mut db = self.get_lock();
         let value = db.entry(key.to_string()).or_insert(Bytes::from("0"));
-        let new_value = match std::str::from_utf8(value) {
+        let new_value = match std::str::from_utf8(&value) {
             Ok(s) => s.parse::<i64>().unwrap() + 1,
             Err(_) => bail!("Cannot increment non-integer value."),
         };
-        *value = Bytes::from(new_value.to_string());
-        self.set(key.to_string(), value.clone());
-        Ok(value.clone())
+        let value = Bytes::from(new_value.to_string());
+        // We cannot use `self.set` here, because we would try to acquire the database lock twice.
+        db.insert(key.to_string(), value.clone());
+        Ok(value)
     }
 }

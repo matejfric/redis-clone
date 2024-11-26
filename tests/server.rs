@@ -1,3 +1,4 @@
+use redis_clone::err::RedisCommandError;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -58,29 +59,87 @@ impl TestClient {
             .read_exact(&mut response)
             .await
             .expect("Failed to read from server");
-        assert_eq!(expected, &response[..]);
+        assert_eq!(
+            expected,
+            &response[..],
+            "Unexpected response {}",
+            String::from_utf8_lossy(response.as_slice())
+        );
+    }
+
+    async fn set(&mut self, key: &str, value: &str) {
+        self.send(
+            format!(
+                "*3\r\n$3\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
+                key.len(),
+                key,
+                value.len(),
+                value
+            )
+            .as_str(),
+        )
+        .await;
+        self.assert_response(b"+OK\r\n").await;
+    }
+
+    async fn send_get(&mut self, key: &str) {
+        self.send(format!("*2\r\n$3\r\nGET\r\n${}\r\n{}\r\n", key.len(), key).as_str())
+            .await;
+    }
+
+    async fn send_exists(&mut self, key: Vec<&str>) {
+        let mut command = String::from("*");
+        command.push_str(&(key.len() + 1).to_string());
+        command.push_str("\r\n");
+        command.push_str("$6\r\nEXISTS\r\n");
+        for k in key {
+            command.push_str("$");
+            command.push_str(&k.len().to_string());
+            command.push_str("\r\n");
+            command.push_str(k);
+            command.push_str("\r\n");
+        }
+        self.send(command.as_str()).await;
+    }
+
+    async fn send_del(&mut self, key: Vec<&str>) {
+        let mut command = String::from("*");
+        command.push_str(&(key.len() + 1).to_string());
+        command.push_str("\r\n$3\r\nDEL\r\n");
+        for k in key {
+            command.push_str("$");
+            command.push_str(&k.len().to_string());
+            command.push_str("\r\n");
+            command.push_str(k);
+            command.push_str("\r\n");
+        }
+        self.send(command.as_str()).await;
+    }
+
+    async fn send_incr(&mut self, key: &str) {
+        self.send(format!("*2\r\n$4\r\nINCR\r\n${}\r\n{}\r\n", key.len(), key).as_str())
+            .await;
+    }
+
+    async fn assert_size(&mut self, expected: i64) {
+        self.send("*1\r\n$6\r\nDBSIZE\r\n").await;
+        self.assert_response(format!(":{}\r\n", expected).as_bytes())
+            .await;
     }
 }
 
 #[tokio::test]
 async fn get_before_set() {
     let mut client = TestClient::new().await;
-    client.send("*2\r\n$3\r\nGET\r\n$5\r\nkey99\r\n").await;
+    client.send_get("key42").await;
     client.assert_response(b"$-1\r\n").await;
 }
 
 #[tokio::test]
 async fn set_and_get_value() {
     let mut client = TestClient::new().await;
-
-    // Set a key
-    client
-        .send("*3\r\n$3\r\nSET\r\n$5\r\nhello\r\n$5\r\nworld\r\n")
-        .await;
-    client.assert_response(b"+OK\r\n").await;
-
-    // Get the key
-    client.send("*2\r\n$3\r\nGET\r\n$5\r\nhello\r\n").await;
+    client.set("hello", "world").await;
+    client.send_get("hello").await;
     client.assert_response(b"$5\r\nworld\r\n").await;
 }
 
@@ -89,19 +148,13 @@ async fn overwrite_key() {
     let mut client = TestClient::new().await;
 
     // Set a key
-    client
-        .send("*3\r\n$3\r\nSET\r\n$4\r\nkey1\r\n$4\r\nval1\r\n")
-        .await;
-    client.assert_response(b"+OK\r\n").await;
+    client.set("key1", "val1").await;
 
     // Overwrite the key with a new value
-    client
-        .send("*3\r\n$3\r\nSET\r\n$4\r\nkey1\r\n$4\r\nval2\r\n")
-        .await;
-    client.assert_response(b"+OK\r\n").await;
+    client.set("key1", "val2").await;
 
     // Get the key
-    client.send("*2\r\n$3\r\nGET\r\n$4\r\nkey1\r\n").await;
+    client.send_get("key1").await;
     client.assert_response(b"$4\r\nval2\r\n").await;
 }
 
@@ -131,4 +184,127 @@ async fn ping_with_message_non_ascii() {
     client
         .assert_response(format!("+{}\r\n", msg).as_bytes())
         .await;
+}
+
+#[tokio::test]
+async fn exists_command() {
+    let mut client = TestClient::new().await;
+
+    client.set("key1", "value").await;
+    client.set("key2", "value").await;
+
+    client.send_exists(vec!["key1"]).await;
+    client.assert_response(b":1\r\n").await;
+
+    client.send_exists(vec!["key42"]).await;
+    client.assert_response(b":0\r\n").await;
+
+    client.send_exists(vec!["key1", "key2", "key42"]).await;
+    client.assert_response(b":2\r\n").await;
+}
+
+#[tokio::test]
+async fn db_size_command() {
+    let mut client = TestClient::new().await;
+    client.assert_size(0).await;
+
+    client.set("key", "value").await;
+    client.assert_size(1).await;
+}
+
+#[tokio::test]
+async fn del_command() {
+    let mut client = TestClient::new().await;
+    let mut keys = Vec::with_capacity(10);
+
+    for i in 1..=10 {
+        keys.push(format!("key{}", i));
+        client.set(format!("key{}", i).as_str(), "value").await;
+    }
+
+    // Delete one key
+    client.send_del(vec!["key10"]).await;
+    client.assert_response(b":1\r\n").await;
+    keys.pop();
+
+    // 9 keys remaining
+    client
+        .send_exists(keys.iter().map(|s| s.as_str()).collect())
+        .await;
+    client.assert_response(b":9\r\n").await;
+
+    // Delete first 5 keys
+    client
+        .send_del(keys.iter().take(5).map(|s| s.as_str()).collect())
+        .await;
+    client.assert_response(b":5\r\n").await;
+
+    // 4 keys remaining
+    client
+        .send_exists(keys.iter().skip(5).map(|s| s.as_str()).collect())
+        .await;
+    client.assert_response(b":4\r\n").await;
+
+    // Delete the remaining keys
+    client
+        .send_del(keys.iter().skip(5).map(|s| s.as_str()).collect())
+        .await;
+    client.assert_response(b":4\r\n").await;
+
+    // No keys remaining
+    client.assert_size(0).await;
+}
+
+#[tokio::test]
+async fn flushdb_command() {
+    let mut client = TestClient::new().await;
+    let mut keys = Vec::with_capacity(10);
+
+    for i in 1..=10 {
+        keys.push(format!("key{}", i));
+        client.set(format!("key{}", i).as_str(), "value").await;
+    }
+    client
+        .send_exists(keys.iter().map(|s| s.as_str()).collect())
+        .await;
+    client.assert_response(b":10\r\n").await;
+
+    // Flush the database
+    client.send("*1\r\n$7\r\nFLUSHDB\r\n").await;
+    client.assert_response(b"+OK\r\n").await;
+
+    // No keys remaining
+    client.assert_size(0).await;
+}
+
+#[tokio::test]
+async fn unknown_command() {
+    let mut client = TestClient::new().await;
+
+    // Send an unknown command
+    client.send("*1\r\n$6\r\nFOOBAR\r\n").await;
+
+    // Read the error response
+    let expected_err = RedisCommandError::InvalidCommand("FOOBAR".to_string());
+    client
+        .assert_response(format!("-ERR {}\r\n", expected_err.to_string()).as_bytes())
+        .await;
+}
+
+#[tokio::test]
+async fn increment_command() {
+    let mut client = TestClient::new().await;
+
+    // Increment a non-existing key
+    client.send_incr("key42").await;
+    client.assert_response(b":1\r\n").await;
+    client.assert_size(1).await;
+
+    // // Increment an existing key
+    client.send_incr("key42").await;
+    client.assert_response(b":2\r\n").await;
+
+    // // Increment a non-existing key
+    client.send_incr("key1337").await;
+    client.assert_response(b":1\r\n").await;
 }
