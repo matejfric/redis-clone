@@ -93,7 +93,7 @@ impl TestClient {
         command.push_str("\r\n");
         command.push_str("$6\r\nEXISTS\r\n");
         for k in key {
-            command.push_str("$");
+            command.push('$');
             command.push_str(&k.len().to_string());
             command.push_str("\r\n");
             command.push_str(k);
@@ -107,7 +107,7 @@ impl TestClient {
         command.push_str(&(key.len() + 1).to_string());
         command.push_str("\r\n$3\r\nDEL\r\n");
         for k in key {
-            command.push_str("$");
+            command.push('$');
             command.push_str(&k.len().to_string());
             command.push_str("\r\n");
             command.push_str(k);
@@ -287,7 +287,7 @@ async fn unknown_command() {
     // Read the error response
     let expected_err = RedisCommandError::InvalidCommand("FOOBAR".to_string());
     client
-        .assert_response(format!("-ERR {}\r\n", expected_err.to_string()).as_bytes())
+        .assert_response(format!("-ERR {}\r\n", expected_err).as_bytes())
         .await;
 }
 

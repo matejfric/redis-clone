@@ -74,7 +74,7 @@ impl DB {
     pub fn increment(&self, key: &str) -> anyhow::Result<Bytes> {
         let mut db = self.get_lock();
         let value = db.entry(key.to_string()).or_insert(Bytes::from("0"));
-        let new_value = match std::str::from_utf8(&value) {
+        let new_value = match std::str::from_utf8(value) {
             Ok(s) => s.parse::<i64>().unwrap() + 1,
             Err(_) => bail!("Cannot increment non-integer value."),
         };

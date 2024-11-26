@@ -68,14 +68,14 @@ impl Command {
                         if parts.is_empty() {
                             Ok(Command::FlushDB)
                         } else {
-                            return Err(Self::wrong_number_of_arguments("FLUSHDB", 0, parts.len()));
+                            Err(Self::wrong_number_of_arguments("FLUSHDB", 0, parts.len()))
                         }
                     }
                     "DBSIZE" => {
                         if parts.is_empty() {
                             Ok(Command::DBSize)
                         } else {
-                            return Err(Self::wrong_number_of_arguments("DBSIZE", 0, parts.len()));
+                            Err(Self::wrong_number_of_arguments("DBSIZE", 0, parts.len()))
                         }
                     }
                     "DEL" => {
