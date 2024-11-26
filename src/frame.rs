@@ -153,9 +153,8 @@ fn has_crlf_with_checks(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisP
         if byte == b'\r' {
             if cursor.has_remaining() && cursor.get_u8() == b'\n' {
                 return Ok(());
-            } else {
-                return Err(RedisProtocolError::ExcessiveNewline);
             }
+            return Err(RedisProtocolError::ExcessiveNewline);
         }
         if byte == b'\n' {
             return Err(RedisProtocolError::ExcessiveNewline);

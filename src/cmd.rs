@@ -120,7 +120,7 @@ impl Command {
 
     fn bulk_to_string(frame: Frame) -> anyhow::Result<String, RedisCommandError> {
         match frame {
-            Frame::Bulk(bytes) => bytes_to_string(bytes),
+            Frame::Bulk(bytes) => bytes_to_string(&bytes),
             _ => Err(RedisCommandError::InvalidFrame(
                 "Expected bulk string".to_string(),
             )),
