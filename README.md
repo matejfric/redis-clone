@@ -17,7 +17,7 @@ echo -e '*3\r\n$3\r\nSET\r\n$6\r\nanswer\r\n$2\r\n42\r\n' | nc 127.0.0.1 6379
 echo -e '*2\r\n$3\r\nGET\r\n$6\r\nanswer\r\n' | nc 127.0.0.1 6379
 ```
 
-or `redis-cli`:
+or with `redis-cli`:
 
 ```sh
 redis-cli -h 127.0.0.1 -p 6379
@@ -63,15 +63,17 @@ The difference between simple strings and errors in RESP is that clients should 
   - [ ] Map (dictionary)
 
 - [x] Implement selected Redis commands.
-  - [x] `PING`
-  - [x] `SET`
-  - [x] `GET`
-  - [x] `DEL`
-  - [x] `INCR`
-  - [x] `EXISTS`
-  - [x] `FLUSHDB`
-  - [x] `DBSIZE`
-  - [ ] `KEYS`
+  - [x] [`PING`](https://redis.io/docs/latest/commands/ping/)
+  - [x] [`SET`](https://redis.io/docs/latest/commands/set/)
+  - [x] [`GET`](https://redis.io/docs/latest/commands/get/)
+  - [x] [`DEL`](https://redis.io/docs/latest/commands/del/)
+  - [x] [`INCR`](https://redis.io/docs/latest/commands/incr/)
+  - [x] [`EXISTS`](https://redis.io/docs/latest/commands/exists/)
+  - [x] [`FLUSHDB`](https://redis.io/docs/latest/commands/flushdb/)
+  - [x] [`DBSIZE`](https://redis.io/docs/latest/commands/dbsize/)
+  - [ ] [`KEYS`](https://redis.io/docs/latest/commands/keys/)
+  - [ ] [`EXPIRE`](https://redis.io/docs/latest/commands/expire/)
+  - [ ] [`TTL`](https://redis.io/docs/latest/commands/ttl/)
 
 ### 3.1. Optional
 
@@ -80,13 +82,7 @@ The difference between simple strings and errors in RESP is that clients should 
 - [ ] [Sharded DB](https://tokio.rs/tokio/tutorial/shared-state#mutex-sharding)
 - [ ] [LOLWUT](https://redis.io/commands/lolwut)
 
-## 4. Testing
-
-Run tests with `cargo test`.
-Run tests on a single thread with `cargo test -- --test-threads=1`.
-Run a single test with `cargo test --test <test_file> [<test_name>]`.
-
-## 5. Contributing
+## 4. Contributing
 
 Please setup pre-commit hooks with the provided script:
 
@@ -94,7 +90,15 @@ Please setup pre-commit hooks with the provided script:
 sh setup-precommit-hooks.sh 
 ```
 
-## 6. Sources
+### 4.1. Testing
+
+Tests are before each push to the repository with `.githooks/pre-push`. To run tests manually:
+
+- Run tests with `cargo test`.
+- Run tests on a single thread with `cargo test -- --test-threads=1`.
+- Run a single test with `cargo test -- --test <test_file> [<test_name>] [--nocapture] [--exact]`.
+
+## 5. Sources
 
 - [Redis protocol specification](https://redis.io/docs/latest/develop/reference/protocol-spec/)
 - [Redis commands](https://redis.io/docs/latest/commands/)
