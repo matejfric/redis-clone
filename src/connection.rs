@@ -77,38 +77,56 @@ impl Connection {
             .context("Failed to flush the stream.")
     }
 
+    /// Write a single frame value to the connection.
     async fn write_value(&mut self, frame: &Frame) -> anyhow::Result<()> {
-        match frame {
-            Frame::Simple(value) => {
-                self.stream.write_u8(b'+').await?;
-                self.stream.write_all(value.as_bytes()).await?;
-                self.stream.write_all(b"\r\n").await?;
+        // We use `Box::pin` to allow recursive calls.
+        Box::pin(async move {
+            match frame {
+                Frame::Simple(value) => {
+                    self.stream.write_u8(b'+').await?;
+                    self.stream.write_all(value.as_bytes()).await?;
+                    self.stream.write_all(b"\r\n").await?;
+                }
+                Frame::Error(value) => {
+                    self.stream.write_u8(b'-').await?;
+                    self.stream.write_all(value.as_bytes()).await?;
+                    self.stream.write_all(b"\r\n").await?;
+                }
+                Frame::Integer(value) => {
+                    self.stream.write_u8(b':').await?;
+                    self.stream.write_all(value.to_string().as_bytes()).await?;
+                    self.stream.write_all(b"\r\n").await?;
+                }
+                Frame::Bulk(value) => {
+                    self.stream.write_u8(b'$').await?;
+                    self.stream
+                        .write_all(value.len().to_string().as_bytes())
+                        .await?;
+                    self.stream.write_all(b"\r\n").await?;
+                    self.stream.write_all(value).await?;
+                    self.stream.write_all(b"\r\n").await?;
+                }
+                Frame::Null => {
+                    self.stream.write_all(b"$-1\r\n").await?;
+                }
+                Frame::Array(vec_) => {
+                    // Write the array length
+                    self.stream.write_u8(b'*').await?;
+                    self.stream
+                        .write_all(vec_.len().to_string().as_bytes())
+                        .await?;
+                    self.stream.write_all(b"\r\n").await?;
+
+                    // Write each element in the array
+                    for value in vec_ {
+                        // Recursively write the value
+                        self.write_value(value).await?;
+                    }
+                }
             }
-            Frame::Error(value) => {
-                self.stream.write_u8(b'-').await?;
-                self.stream.write_all(value.as_bytes()).await?;
-                self.stream.write_all(b"\r\n").await?;
-            }
-            Frame::Integer(value) => {
-                self.stream.write_u8(b':').await?;
-                self.stream.write_all(value.to_string().as_bytes()).await?;
-                self.stream.write_all(b"\r\n").await?;
-            }
-            Frame::Bulk(value) => {
-                self.stream.write_u8(b'$').await?;
-                self.stream
-                    .write_all(value.len().to_string().as_bytes())
-                    .await?;
-                self.stream.write_all(b"\r\n").await?;
-                self.stream.write_all(value).await?;
-                self.stream.write_all(b"\r\n").await?;
-            }
-            Frame::Null => {
-                self.stream.write_all(b"$-1\r\n").await?;
-            }
-            Frame::Array(_vec) => unimplemented!("Nested arrays are not supported."),
-        }
-        Ok(())
+            Ok::<_, anyhow::Error>(())
+        })
+        .await
     }
 
     /// Parse a frame from the buffered data.
