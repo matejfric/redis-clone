@@ -74,6 +74,9 @@ The difference between simple strings and errors in RESP is that clients should 
   - [ ] [`KEYS`](https://redis.io/docs/latest/commands/keys/)
   - [ ] [`EXPIRE`](https://redis.io/docs/latest/commands/expire/)
   - [ ] [`TTL`](https://redis.io/docs/latest/commands/ttl/)
+  - [ ] [`LPUSH`](https://redis.io/docs/latest/commands/lpush/)
+  - [ ] [`LLEN`](https://redis.io/docs/latest/commands/llen/)
+  - [ ] [`LRANGE`](https://redis.io/docs/latest/commands/lrange/)
 
 ### 3.1. Optional
 
