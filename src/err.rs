@@ -26,6 +26,9 @@ pub enum RedisCommandError {
     #[error("Invalid UTF-8 in command: {0}")]
     InvalidUtf8(String),
 
+    #[error("Failed to parse integer: {0}")]
+    ParseIntError(String),
+
     #[error("{0} expects {1} arguments, got {2}")]
     WrongNumberOfArguments(String, usize, usize),
 }
