@@ -7,15 +7,12 @@ use crate::err::RedisProtocolError;
 
 #[derive(Debug)]
 pub enum Frame {
-    Simple(String), // `+{string data}\r\n`
-    Error(String),  // `-{error message}\r\n`
-    Integer(i64),   // `:[<+|->]<value>\r\n`
-    Bulk(Bytes),    // `${number of bytes}\r\n{data}\r\n`
-    Null,           // RESP2: `$-1\r\n (string of length -1)` OR RESP3: `_\r\n`
-    Array(Vec<Frame>), // `*{number of elements}\r\n{frames}\r\n` (empty array `*0\r\n`)
-                    // TODO:
-                    // Dictionary(Vec<(String, Frame)>), // `%{number of keys}\r\n{tuples of frame}\r\n`
-                    // Boolean `#<t|f>\r\n`
+    Simple(String),    // `+{string data}\r\n`
+    Error(String),     // `-{error message}\r\n`
+    Integer(i64),      // `:[<+|->]<value>\r\n`
+    Bulk(Bytes),       // `${number of bytes}\r\n{data}\r\n`
+    Null,              // RESP2: `$-1\r\n (string of length -1)` OR RESP3: `_\r\n`
+    Array(Vec<Frame>), // `*{number of elements}\r\n{frames}\r\n` (empty array `*0\r\n`
 }
 
 impl Frame {
@@ -45,8 +42,9 @@ impl Frame {
             }
             b'*' => {
                 // Array
-                let crlf_index = seek_newline(cursor)?;
-                let len_u8 = get_byte_slice(cursor, 1, crlf_index);
+                let start = cursor.position() as usize;
+                let crlf_index = start + seek_newline(cursor)?;
+                let len_u8 = get_byte_slice(cursor, start, crlf_index);
                 let len = atoi::<usize>(len_u8).ok_or_else(|| {
                     RedisProtocolError::ConversionError(String::from_utf8_lossy(len_u8).to_string())
                 })?;
@@ -104,8 +102,9 @@ impl Frame {
             }
             b'*' => {
                 // Example: `echo -e '*3\r\n:-78741\r\n+hello\r\n_\r\n' | nc 127.0.0.1 6379`
-                let crlf_index = seek_newline(cursor)?;
-                let len_u8 = get_byte_slice(cursor, 1, crlf_index);
+                let start = cursor.position() as usize;
+                let crlf_index = start + seek_newline(cursor)?;
+                let len_u8 = get_byte_slice(cursor, start, crlf_index);
                 let len = atoi::<usize>(len_u8)
                     .ok_or_else(|| {
                         RedisProtocolError::ConversionError(
