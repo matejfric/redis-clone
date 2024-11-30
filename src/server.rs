@@ -149,7 +149,13 @@ impl RedisServer {
             };
 
             match timeout(TIMEOUT_DURATION, conn.write_frame(&response)).await {
-                Ok(result) => result?,
+                Ok(result) => match result {
+                    Ok(_) => log::debug!("Written to {}: {:?}", addr, response),
+                    Err(e) => {
+                        log::error!("Error writing to {}: {}", addr, e);
+                        break Err(e);
+                    }
+                },
                 Err(_) => {
                     log::warn!(
                         "Client {} write timed out after {} seconds",
