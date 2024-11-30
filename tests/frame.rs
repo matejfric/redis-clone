@@ -1,5 +1,9 @@
+mod common;
+
 #[cfg(test)]
 mod tests {
+    use super::common::get_or_init_logger;
+
     use bytes::Bytes;
     use std::io::Cursor;
 
@@ -179,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_null_bulk_string() {
-        env_logger::init();
+        get_or_init_logger();
 
         let data = b"$-1\r\n";
         let mut cursor = Cursor::new(&data[..]);
@@ -190,6 +194,53 @@ mod tests {
         match Frame::parse(&mut cursor).unwrap() {
             Frame::Null => (),
             _ => panic!("Expected Null frame"),
+        }
+    }
+
+    #[test]
+    fn nested_array() {
+        get_or_init_logger();
+
+        let data = b"*2\r\n*2\r\n:1\r\n:2\r\n*1\r\n+hello\r\n";
+        let mut cursor = Cursor::new(&data[..]);
+
+        let result = Frame::is_parsable(&mut cursor);
+        assert!(
+            result.is_ok(),
+            "Failed to parse frame: {:?}",
+            result.err().unwrap()
+        );
+
+        cursor.set_position(0);
+        match Frame::parse(&mut cursor).unwrap() {
+            Frame::Array(frames) => {
+                assert_eq!(frames.len(), 2);
+                match &frames[0] {
+                    Frame::Array(inner_frames) => {
+                        assert_eq!(inner_frames.len(), 2);
+                        match &inner_frames[0] {
+                            Frame::Integer(n) => assert_eq!(*n, 1),
+                            _ => panic!("Expected Integer frame"),
+                        }
+                        match &inner_frames[1] {
+                            Frame::Integer(n) => assert_eq!(*n, 2),
+                            _ => panic!("Expected Integer frame"),
+                        }
+                    }
+                    _ => panic!("Expected Array frame"),
+                }
+                match &frames[1] {
+                    Frame::Array(inner_frames) => {
+                        assert_eq!(inner_frames.len(), 1);
+                        match &inner_frames[0] {
+                            Frame::Simple(s) => assert_eq!(s, "hello"),
+                            _ => panic!("Expected Simple frame"),
+                        }
+                    }
+                    _ => panic!("Expected Array frame"),
+                }
+            }
+            _ => panic!("Expected Array frame"),
         }
     }
 }
