@@ -10,6 +10,7 @@ use redis_clone::RedisServer;
 ///
 /// $ RUST_LOG=debug cargo run --bin server
 #[tokio::main]
+#[cfg(not(tarpaulin_include))]
 async fn main() -> anyhow::Result<()> {
     // Initialize the logger.
     env_logger::init();
