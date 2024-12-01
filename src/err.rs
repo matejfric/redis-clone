@@ -31,4 +31,7 @@ pub enum RedisCommandError {
 
     #[error("{0} expects {1} arguments, got {2}")]
     WrongNumberOfArguments(String, usize, usize),
+
+    #[error("Not implemented error: {0}")]
+    NotImplemented(String),
 }

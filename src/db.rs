@@ -67,9 +67,14 @@ impl DB {
         db.shrink_to_fit(); // Free up unused memory.
     }
     /// Get all the keys in the database.
-    pub fn keys(&self) -> Vec<String> {
-        let db = self.get_lock();
-        db.keys().cloned().collect()
+    pub fn keys(&self, pattern: &str) -> anyhow::Result<Vec<String>> {
+        let db: MutexGuard<'_, HashMap<String, Bytes>> = self.get_lock();
+        let glob_pattern = glob::Pattern::new(pattern)?;
+        Ok(db
+            .keys()
+            .filter(|key| glob_pattern.matches(key))
+            .cloned()
+            .collect())
     }
     /// Increment a value of key-value pair in the database.
     pub fn increment(&self, key: &str) -> anyhow::Result<Bytes> {

@@ -12,6 +12,7 @@ pub enum Command {
     Del { keys: Vec<String> },
     Exists { keys: Vec<String> },
     Increment { key: String },
+    Keys { pattern: String },
     FlushDB,
     DBSize,
     Unknown(String),
@@ -99,6 +100,14 @@ impl Command {
                             .map(Self::bulk_to_string)
                             .collect::<Result<Vec<String>, RedisCommandError>>()?;
                         Ok(Command::Exists { keys })
+                    }
+                    "KEYS" => {
+                        if parts.is_empty() {
+                            Err(Self::wrong_number_of_arguments("KEYS", 1, parts.len()))
+                        } else {
+                            let pattern = Self::bulk_to_string(parts.remove(0))?;
+                            Ok(Command::Keys { pattern })
+                        }
                     }
                     _ => Ok(Command::Unknown(command)),
                 }

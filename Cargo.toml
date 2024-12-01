@@ -12,4 +12,7 @@ log = "0.4.22" # Logging
 atoi = "2.0.0" # Byte to number conversion
 bytes = "1.7" # Vec<u8> with shallow cloning and other helpful method
 tokio = { version = "1.40", features = ["full"] } # Async runtime
+glob = "0.3.1" # Pattern matching
+
+[dev-dependencies]
 assert_matches = "1.5.0"

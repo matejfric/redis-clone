@@ -1,6 +1,7 @@
 use core::str;
 use std::net::SocketAddr;
 
+use bytes::Bytes;
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tokio::time::{timeout, Duration};
@@ -225,6 +226,17 @@ impl RedisServer {
                 "ERR {}",
                 RedisCommandError::InvalidCommand(cmd.to_string())
             )),
+            Command::Keys { pattern } => {
+                let keys = db.keys(pattern.as_str());
+                match keys {
+                    Ok(keys) => Frame::Array(
+                        keys.into_iter()
+                            .map(|s| Frame::Bulk(Bytes::from(s)))
+                            .collect(),
+                    ),
+                    Err(e) => Frame::Error(format!("ERR {}", e)),
+                }
+            }
         }
     }
 }

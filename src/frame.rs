@@ -126,6 +126,10 @@ impl Frame {
             byte => Err(RedisProtocolError::UnsupportedFrame(byte)),
         }
     }
+
+    pub fn bulk_from_str(s: &str) -> Frame {
+        Frame::Bulk(Bytes::copy_from_slice(s.as_bytes()))
+    }
 }
 
 /// Returns the index of the first newline character in the buffer

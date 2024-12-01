@@ -90,7 +90,7 @@ The difference between simple strings and errors in RESP is that clients should 
 Please setup pre-commit hooks with the provided script:
 
 ```sh
-sh setup-precommit-hooks.sh 
+sh setup-git-hooks.sh 
 ```
 
 ### 4.1. Testing

@@ -59,6 +59,10 @@ impl RedisClient {
             ]),
             Command::FlushDB => Frame::Array(vec![Frame::Bulk(Bytes::from("FLUSHDB"))]),
             Command::DBSize => Frame::Array(vec![Frame::Bulk(Bytes::from("DBSIZE"))]),
+            Command::Keys { pattern } => Frame::Array(vec![
+                Frame::Bulk(Bytes::from("KEYS")),
+                Frame::Bulk(Bytes::from(pattern)),
+            ]),
             Command::Unknown(cmd) => Frame::Array(vec![Frame::Bulk(Bytes::from(cmd))]),
         };
 
@@ -116,6 +120,12 @@ impl RedisClient {
     /// Get the size of the current database
     pub async fn dbsize(&mut self) -> anyhow::Result<Option<Frame>> {
         let command = Command::DBSize;
+        self.execute(command).await
+    }
+
+    /// Get all keys matching a pattern
+    pub async fn keys(&mut self, pattern: String) -> anyhow::Result<Option<Frame>> {
+        let command = Command::Keys { pattern };
         self.execute(command).await
     }
 }

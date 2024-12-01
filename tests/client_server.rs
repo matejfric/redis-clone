@@ -1,13 +1,31 @@
+use assert_matches::assert_matches;
+
+use redis_clone::common::bytes_to_i64;
+use redis_clone::frame::Frame;
+use redis_clone::RedisClient;
+
 mod common;
+
+pub trait TestClient {
+    #[allow(async_fn_in_trait)]
+    async fn set_key_value(&mut self, key: String, value: String);
+}
+
+impl TestClient for RedisClient {
+    /// Set a key to a value
+    async fn set_key_value(&mut self, key: String, value: String) {
+        let response = self
+            .set(key.to_string(), value.into())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(response, Frame::Simple(_));
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use assert_matches::assert_matches;
-
-    use redis_clone::common::bytes_to_i64;
-    use redis_clone::frame::Frame;
 
     #[tokio::test]
     async fn concurrent_increment() {
@@ -67,5 +85,76 @@ mod tests {
             Frame::Bulk(bytes) => assert_eq!(bytes_to_i64(&bytes).unwrap(), expected),
             frame => panic!("Expected bulk frame. Got: {:?}", frame),
         };
+    }
+
+    #[tokio::test]
+    async fn keys_command() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        // Set some keys
+        let keys = vec!["key1", "key2", "key3"];
+        for key in &keys {
+            client
+                .set_key_value(key.to_string(), "value".to_string())
+                .await;
+        }
+
+        // Get all keys
+        let response = client.keys("*".to_string()).await.unwrap().unwrap();
+        match response {
+            Frame::Array(frames) => {
+                let actual_keys = frames
+                    .iter()
+                    .map(|frame| match frame {
+                        Frame::Bulk(bytes) => String::from_utf8(bytes.to_vec()).unwrap(),
+                        frame => panic!("Expected bulk frame. Got: {:?}", frame),
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(actual_keys.len(), keys.len());
+                for key in &keys {
+                    assert!(actual_keys.contains(&key.to_string()));
+                }
+            }
+            frame => panic!("Expected array frame. Got: {:?}", frame),
+        }
+    }
+
+    #[tokio::test]
+    async fn keys_with_pattern() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        // Set some keys
+        let keys_to_match = vec!["k1y", "k2y", "k3y"];
+        let other_keys = vec!["foo", "bar", "foobar"];
+        for key in keys_to_match.iter().chain(&other_keys) {
+            client
+                .set_key_value(key.to_string(), "value".to_string())
+                .await;
+        }
+
+        // Get keys matching a pattern
+        let response = client.keys("k?y".to_string()).await.unwrap().unwrap();
+        match response {
+            Frame::Array(frames) => {
+                let actual_keys = frames
+                    .iter()
+                    .map(|frame| match frame {
+                        Frame::Bulk(bytes) => String::from_utf8(bytes.to_vec()).unwrap(),
+                        frame => panic!("Expected bulk frame. Got: {:?}", frame),
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(actual_keys.len(), keys_to_match.len());
+                for key in &keys_to_match {
+                    assert!(actual_keys.contains(&key.to_string()));
+                }
+            }
+            frame => panic!("Expected array frame. Got: {:?}", frame),
+        }
     }
 }
