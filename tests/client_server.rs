@@ -1,35 +1,33 @@
+use std::sync::Arc;
+
 use assert_matches::assert_matches;
 
 use redis_clone::common::bytes_to_i64;
 use redis_clone::Frame;
 use redis_clone::RedisClient;
+use redis_clone::{array, bulk, integer, null, simple};
 
 mod common;
 
 pub trait TestClient {
     #[allow(async_fn_in_trait)]
-    async fn set_key_value(&mut self, key: String, value: String);
+    async fn set_key_value(&mut self, key: &str, value: &str);
 }
 
 impl TestClient for RedisClient {
     /// Set a key to a value
-    async fn set_key_value(&mut self, key: String, value: String) {
+    async fn set_key_value(&mut self, key: &str, value: &str) {
         let response = self
-            .set(key.to_string(), value.into())
+            .set(key.to_string(), value.to_string().into())
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(response, Frame::Simple("OK".to_string()));
+        assert_eq!(response, simple!("OK"));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use bytes::Bytes;
-    use redis_clone::{array, bulk, integer, null, simple};
-
     use super::*;
 
     #[tokio::test]
@@ -68,9 +66,7 @@ mod tests {
         // Set some keys
         let keys = vec!["key1", "key2", "key3"];
         for key in &keys {
-            client
-                .set_key_value(key.to_string(), "value".to_string())
-                .await;
+            client.set_key_value(key, "value").await;
         }
 
         // Check if keys exist
@@ -158,11 +154,13 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn stress_test_single_client() {
+        common::get_or_init_logger();
+
         let test_server = common::TestServer::new().await;
         let client = Arc::new(tokio::sync::Mutex::new(test_server.create_client().await));
 
         // Number of concurrent tasks
-        let num_tasks = 128;
+        let num_tasks = 256;
 
         // Synchronization barrier to start all tasks simultaneously
         let barrier = common::create_barrier(num_tasks);
@@ -178,18 +176,14 @@ mod tests {
                 barrier_clone.wait().await;
 
                 // Unique key for each task
-                let key = format!("test_key_{}", task_id);
+                let key = format!("test_key_that_is_very_very_long_{}", task_id);
                 let value = format!("test_value_{}", task_id);
 
                 // Perform a series of operations
                 {
                     let mut client_guard = client_clone.lock().await;
 
-                    // Set a key
-                    client_guard
-                        .set(key.clone(), Bytes::from(value.clone()))
-                        .await
-                        .expect("Set failed");
+                    client_guard.set_key_value(&key, &value).await;
 
                     // Increment a counter
                     client_guard
@@ -259,9 +253,7 @@ mod tests {
         // Set some keys
         let keys = vec!["key1", "key2", "key3"];
         for key in &keys {
-            client
-                .set_key_value(key.to_string(), "value".to_string())
-                .await;
+            client.set_key_value(key, "value").await;
         }
 
         // Get all keys
@@ -295,9 +287,7 @@ mod tests {
         let keys_to_match = vec!["k1y", "k2y", "k3y"];
         let other_keys = vec!["foo", "bar", "foobar"];
         for key in keys_to_match.iter().chain(&other_keys) {
-            client
-                .set_key_value(key.to_string(), "value".to_string())
-                .await;
+            client.set_key_value(key, "value").await;
         }
 
         // Get keys matching a pattern
@@ -330,9 +320,7 @@ mod tests {
         // Set some keys
         let keys = vec!["key1", "key2", "key3"];
         for key in &keys {
-            client
-                .set_key_value(key.to_string(), "value".to_string())
-                .await;
+            client.set_key_value(key, "value").await;
         }
 
         // Flush the database
