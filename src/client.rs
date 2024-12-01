@@ -64,7 +64,10 @@ impl RedisClient {
                 Frame::Bulk(Bytes::from(pattern)),
             ]),
             Command::Unknown(cmd) => Frame::Array(vec![Frame::Bulk(Bytes::from(cmd))]),
-            Command::Lolwut(frames) => Frame::Array(frames),
+            Command::Lolwut(frames) => Frame::Array(vec![
+                Frame::Bulk(Bytes::from("LOLWUT")),
+                Frame::Array(frames),
+            ]),
             Command::Expire { key, seconds } => Frame::Array(vec![
                 Frame::Bulk(Bytes::from("EXPIRE")),
                 Frame::Bulk(Bytes::from(key)),
@@ -140,6 +143,11 @@ impl RedisClient {
     /// Returns 1 if the timeout was set, 0 if the timeout was not set.
     pub async fn expire(&mut self, key: String, seconds: u64) -> anyhow::Result<Option<Frame>> {
         let command = Command::Expire { key, seconds };
+        self.execute(command).await
+    }
+
+    pub async fn lolwut(&mut self, frames: Vec<Frame>) -> anyhow::Result<Option<Frame>> {
+        let command = Command::Lolwut(frames);
         self.execute(command).await
     }
 }

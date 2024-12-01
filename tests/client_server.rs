@@ -25,7 +25,7 @@ impl TestClient for RedisClient {
 
 #[cfg(test)]
 mod tests {
-    use redis_clone::{integer, null, simple};
+    use redis_clone::{array, bulk, integer, null, simple};
 
     use super::*;
 
@@ -276,5 +276,28 @@ mod tests {
 
         let response = client.dbsize().await.unwrap().unwrap();
         assert_eq!(response, integer!(0));
+    }
+
+    #[tokio::test]
+    async fn lolwut() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        let frames = vec![
+            array!(bulk!("Hello, Redis!"), bulk!("Hello, World!")),
+            array!(integer!(42), integer!(1337)),
+        ];
+
+        let response = client.lolwut(frames).await.unwrap().unwrap();
+        assert_matches!(response, Frame::Array(_));
+
+        let expected = array!(
+            array!(bulk!("Hello, Redis!"), bulk!("Hello, World!")),
+            array!(integer!(42), integer!(1337)),
+            simple!("https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi"),
+        );
+        assert_eq!(response, expected);
     }
 }

@@ -12,6 +12,7 @@ use crate::constants::TIMEOUT_DURATION;
 use crate::db::DB;
 use crate::err::RedisCommandError;
 use crate::frame::Frame;
+use crate::simple;
 
 pub struct RedisServer {
     listener: TcpListener,
@@ -240,12 +241,10 @@ impl RedisServer {
                     Err(e) => Frame::Error(format!("ERR {}", e)),
                 }
             }
-            Command::Lolwut(frames) => {
-                let mut frame = Frame::Array(frames);
-                match frame.append(Frame::Simple(
-                    "https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi".to_string(),
-                )) {
-                    Ok(_) => frame,
+            Command::Lolwut(mut frames) => {
+                let mut frames = frames.remove(0);
+                match frames.append(simple!("https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi")) {
+                    Ok(_) => frames,
                     Err(e) => Frame::Error(format!("ERR {}", e)),
                 }
             }
