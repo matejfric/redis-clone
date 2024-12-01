@@ -59,31 +59,27 @@ The difference between simple strings and errors in RESP is that clients should 
   - [x] Bulk strings
   - [x] Arrays
   - [x] Null
-  - [ ] Boolean
-  - [ ] Map (dictionary)
 
 - [x] Implement selected Redis commands.
   - [x] [`PING`](https://redis.io/docs/latest/commands/ping/)
   - [x] [`SET`](https://redis.io/docs/latest/commands/set/)
+    - [ ] Expiration, e.g., `SET mykey "will expire in a minute" EX 60`
   - [x] [`GET`](https://redis.io/docs/latest/commands/get/)
   - [x] [`DEL`](https://redis.io/docs/latest/commands/del/)
   - [x] [`INCR`](https://redis.io/docs/latest/commands/incr/)
   - [x] [`EXISTS`](https://redis.io/docs/latest/commands/exists/)
   - [x] [`FLUSHDB`](https://redis.io/docs/latest/commands/flushdb/)
   - [x] [`DBSIZE`](https://redis.io/docs/latest/commands/dbsize/)
-  - [ ] [`KEYS`](https://redis.io/docs/latest/commands/keys/)
-  - [ ] [`EXPIRE`](https://redis.io/docs/latest/commands/expire/)
+  - [x] [`KEYS`](https://redis.io/docs/latest/commands/keys/)
+  - [x] [`EXPIRE`](https://redis.io/docs/latest/commands/expire/)
   - [ ] [`TTL`](https://redis.io/docs/latest/commands/ttl/)
-  - [ ] [`LPUSH`](https://redis.io/docs/latest/commands/lpush/)
-  - [ ] [`LLEN`](https://redis.io/docs/latest/commands/llen/)
-  - [ ] [`LRANGE`](https://redis.io/docs/latest/commands/lrange/)
 
 ### 3.1. Optional
 
 - [ ] [Redis pipelining](https://redis.io/docs/latest/develop/use/pipelining/)
 - [ ] [Tokio codec](https://docs.rs/tokio-util/latest/tokio_util/codec/index.html)
 - [ ] [Sharded DB](https://tokio.rs/tokio/tutorial/shared-state#mutex-sharding)
-- [ ] [LOLWUT](https://redis.io/commands/lolwut)
+- [x] [LOLWUT](https://redis.io/commands/lolwut) (kind of)
 
 ## 4. Contributing
 

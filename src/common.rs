@@ -13,5 +13,5 @@ pub fn bytes_to_i64(bytes: &Bytes) -> anyhow::Result<i64, RedisCommandError> {
         .map_err(|e| RedisCommandError::InvalidUtf8(e.to_string()))?
         .trim();
     s.parse::<i64>()
-        .map_err(|e| RedisCommandError::ParseIntError(e.to_string()))
+        .map_err(|e| RedisCommandError::ParseDecimalError(e.to_string()))
 }

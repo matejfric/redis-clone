@@ -17,6 +17,7 @@ static SERVER_PORT_COUNTER: AtomicU16 = AtomicU16::new(31_415);
 pub struct TestServer {
     port: u16,
     handle: Arc<tokio::task::JoinHandle<()>>,
+    shutdown: Arc<tokio::sync::broadcast::Sender<()>>,
 }
 
 impl TestServer {
@@ -27,6 +28,8 @@ impl TestServer {
             .await
             .expect("Failed to create Redis server");
 
+        let shutdown = server.get_shutdown_handle();
+
         let handle = tokio::spawn(async move {
             server.run().await.expect("Failed to run Redis server");
         });
@@ -34,6 +37,7 @@ impl TestServer {
         TestServer {
             port: server_port,
             handle: Arc::new(handle),
+            shutdown: Arc::new(shutdown),
         }
     }
 

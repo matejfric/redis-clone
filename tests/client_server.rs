@@ -25,6 +25,8 @@ impl TestClient for RedisClient {
 
 #[cfg(test)]
 mod tests {
+    use redis_clone::{integer, null, simple};
+
     use super::*;
 
     #[tokio::test]
@@ -156,5 +158,67 @@ mod tests {
             }
             frame => panic!("Expected array frame. Got: {:?}", frame),
         }
+    }
+
+    #[tokio::test]
+    async fn flushdb_command() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        // Set some keys
+        let keys = vec!["key1", "key2", "key3"];
+        for key in &keys {
+            client
+                .set_key_value(key.to_string(), "value".to_string())
+                .await;
+        }
+
+        // Flush the database
+        let response = client.flushdb().await.unwrap().unwrap();
+        assert_eq!(response, simple!("OK"));
+
+        // Verify that all keys have been removed
+        for key in &keys {
+            let response = client.get(key.to_string()).await.unwrap().unwrap();
+            assert_eq!(response, null!());
+        }
+    }
+
+    #[tokio::test]
+    async fn expire_command() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        // Attempt to set expiration on a non-existent key
+        let response = client
+            .expire("non-existent".to_string(), 1)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(response, integer!(0));
+
+        // Set a key with an expiration
+        let key = "key";
+        client
+            .set(key.to_string(), "value".into())
+            .await
+            .unwrap()
+            .unwrap();
+        let response = client.expire(key.to_string(), 1).await.unwrap().unwrap();
+        assert_eq!(response, integer!(1));
+
+        // Wait for the key to expire
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // Verify that the key has been removed
+        let response = client.get(key.to_string()).await.unwrap().unwrap();
+        assert_eq!(response, null!());
+
+        let response = client.dbsize().await.unwrap().unwrap();
+        assert_eq!(response, integer!(0));
     }
 }

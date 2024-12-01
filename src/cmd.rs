@@ -17,6 +17,7 @@ pub enum Command {
     DBSize,
     Unknown(String),
     Lolwut(Vec<Frame>), // Custom command
+    Expire { key: String, seconds: u64 },
 }
 
 impl Command {
@@ -116,6 +117,20 @@ impl Command {
                         } else {
                             Ok(Command::Lolwut(parts))
                         }
+                    }
+                    "EXPIRE" => {
+                        if parts.len() != 2 {
+                            return Err(Self::wrong_number_of_arguments("EXPIRE", 2, parts.len()));
+                        }
+                        let key = Self::bulk_to_string(parts.remove(0))?;
+                        let seconds = Self::bulk_to_string(parts.remove(0))?;
+                        let seconds = seconds.parse::<u64>().map_err(|_| {
+                            RedisCommandError::ParseDecimalError(format!(
+                                "Invalid seconds: {}",
+                                seconds
+                            ))
+                        })?;
+                        Ok(Command::Expire { key, seconds })
                     }
                     _ => Ok(Command::Unknown(command)),
                 }

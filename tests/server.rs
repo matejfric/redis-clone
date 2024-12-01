@@ -121,6 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_before_set() {
+        common::get_or_init_logger();
         let port = common::TestServer::new().await.port();
         let mut client = TestClient::new(port).await;
         client.send_get("key42").await;
@@ -297,6 +298,7 @@ mod tests {
 
     #[tokio::test]
     async fn increment_command() {
+        common::get_or_init_logger();
         let port = common::TestServer::new().await.port();
         let mut client = TestClient::new(port).await;
 

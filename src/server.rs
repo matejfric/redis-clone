@@ -95,6 +95,9 @@ impl RedisServer {
             }
         }
 
+        // Stop database expiration task
+        self.db.shutdown().await;
+
         // Give connections time to close gracefully
         tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -102,7 +105,7 @@ impl RedisServer {
     }
 
     /// Get a handle to the shutdown signal.
-    fn get_shutdown_handle(&self) -> broadcast::Sender<()> {
+    pub fn get_shutdown_handle(&self) -> broadcast::Sender<()> {
         self.shutdown.clone()
     }
 
@@ -145,7 +148,7 @@ impl RedisServer {
             log::debug!("Received from {}: {:?}", addr, frame);
 
             let response = match Command::from_frame(frame) {
-                Ok(command) => Self::handle_command(command, &db),
+                Ok(command) => Self::handle_command(command, &db).await,
                 Err(e) => Frame::Error(format!("ERR {}", e)),
             };
 
@@ -169,14 +172,14 @@ impl RedisServer {
         }
     }
 
-    fn handle_command(command: Command, db: &DB) -> Frame {
+    async fn handle_command(command: Command, db: &DB) -> Frame {
         match command {
-            Command::Get { key } => match db.get(&key) {
+            Command::Get { key } => match db.get(&key).await {
                 Some(value) => Frame::Bulk(value),
                 None => Frame::Null,
             },
             Command::Set { key, val } => {
-                db.set(key, val);
+                db.set(key, val, None).await;
                 Frame::Simple("OK".to_string())
             }
             Command::Ping { msg } => match msg {
@@ -185,7 +188,7 @@ impl RedisServer {
             },
             Command::Increment { key } => {
                 log::debug!("Incrementing key: {}", key);
-                match db.increment(&key) {
+                match db.increment(&key).await {
                     // Reading bytes from DB should be safe
                     Ok(value) => match unsafe { str::from_utf8_unchecked(&value).parse::<i64>() } {
                         Ok(num) => Frame::Integer(num),
@@ -200,13 +203,13 @@ impl RedisServer {
                 }
             }
             Command::FlushDB => {
-                db.flush();
+                db.flush().await;
                 Frame::Simple("OK".to_string())
             }
             Command::Del { keys } => {
                 let mut count = 0;
                 for key in keys {
-                    if db.remove(&key).is_some() {
+                    if db.remove(&key).await.is_some() {
                         count += 1;
                     }
                 }
@@ -215,19 +218,19 @@ impl RedisServer {
             Command::Exists { keys } => {
                 let mut count = 0;
                 for key in keys {
-                    if db.exists(key.as_str()) {
+                    if db.exists(key.as_str()).await {
                         count += 1;
                     }
                 }
                 Frame::Integer(count)
             }
-            Command::DBSize => Frame::Integer(db.len() as i64),
+            Command::DBSize => Frame::Integer(db.size().await as i64),
             Command::Unknown(cmd) => Frame::Error(format!(
                 "ERR {}",
                 RedisCommandError::InvalidCommand(cmd.to_string())
             )),
             Command::Keys { pattern } => {
-                let keys = db.keys(pattern.as_str());
+                let keys = db.keys(pattern.as_str()).await;
                 match keys {
                     Ok(keys) => Frame::Array(
                         keys.into_iter()
@@ -244,6 +247,13 @@ impl RedisServer {
                 )) {
                     Ok(_) => frame,
                     Err(e) => Frame::Error(format!("ERR {}", e)),
+                }
+            }
+            Command::Expire { key, seconds } => {
+                if db.expire(key.as_str(), Duration::from_secs(seconds)).await {
+                    Frame::Integer(1)
+                } else {
+                    Frame::Integer(0)
                 }
             }
         }

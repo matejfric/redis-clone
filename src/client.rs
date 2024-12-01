@@ -65,6 +65,11 @@ impl RedisClient {
             ]),
             Command::Unknown(cmd) => Frame::Array(vec![Frame::Bulk(Bytes::from(cmd))]),
             Command::Lolwut(frames) => Frame::Array(frames),
+            Command::Expire { key, seconds } => Frame::Array(vec![
+                Frame::Bulk(Bytes::from("EXPIRE")),
+                Frame::Bulk(Bytes::from(key)),
+                Frame::Bulk(Bytes::from(seconds.to_string())),
+            ]),
         };
 
         // Write the frame to the connection
@@ -127,6 +132,14 @@ impl RedisClient {
     /// Get all keys matching a pattern
     pub async fn keys(&mut self, pattern: String) -> anyhow::Result<Option<Frame>> {
         let command = Command::Keys { pattern };
+        self.execute(command).await
+    }
+
+    /// Set a key to expire in `seconds`
+    ///
+    /// Returns 1 if the timeout was set, 0 if the timeout was not set.
+    pub async fn expire(&mut self, key: String, seconds: u64) -> anyhow::Result<Option<Frame>> {
+        let command = Command::Expire { key, seconds };
         self.execute(command).await
     }
 }
