@@ -2,8 +2,7 @@ mod common;
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
-    use redis_clone::{Connection, Frame};
+    use redis_clone::{array, bulk, integer, simple, Connection};
     use tokio::net::TcpStream;
 
     use super::*;
@@ -18,24 +17,18 @@ mod tests {
 
         let mut conn = Connection::new(stream);
 
-        let command = Frame::Array(vec![
-            Frame::Bulk("LOLWUT".into()),
-            Frame::Array(vec![
-                Frame::Bulk(Bytes::from("Hello, Redis!")),
-                Frame::Bulk(Bytes::from("Hello, World!")),
-            ]),
-            Frame::Array(vec![Frame::Integer(42), Frame::Integer(1337)]),
-        ]);
+        let command = array!(
+            bulk!("LOLWUT"),
+            array!(bulk!("Hello, Redis!"), bulk!("Hello, World!")),
+            array!(integer!(42), integer!(1337)),
+        );
         assert!(conn.write_frame(&command).await.is_ok());
 
-        let expected = Frame::Array(vec![
-            Frame::Array(vec![
-                Frame::Bulk(Bytes::from("Hello, Redis!")),
-                Frame::Bulk(Bytes::from("Hello, World!")),
-            ]),
-            Frame::Array(vec![Frame::Integer(42), Frame::Integer(1337)]),
-            Frame::Simple("https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi".to_string()),
-        ]);
+        let expected = array!(
+            array!(bulk!("Hello, Redis!"), bulk!("Hello, World!")),
+            array!(integer!(42), integer!(1337)),
+            simple!("https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi"),
+        );
         let result = conn.read_frame().await.unwrap().unwrap();
         assert_eq!(result, expected);
     }

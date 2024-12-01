@@ -113,6 +113,8 @@ impl TestClient {
     }
 }
 
+/// Tests without usage of the `frame` and `connection` modules.
+/// Should be compliant with the Redis protocol.
 #[cfg(test)]
 mod tests {
     use super::*;
