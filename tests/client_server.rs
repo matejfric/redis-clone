@@ -25,6 +25,9 @@ impl TestClient for RedisClient {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use bytes::Bytes;
     use redis_clone::{array, bulk, integer, null, simple};
 
     use super::*;
@@ -93,17 +96,17 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn concurrent_increment() {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
 
         // Number of concurrent clients
-        const NUM_CLIENTS: usize = 2;
+        const NUM_CLIENTS: usize = 10;
 
         // Number of increment operations per client
-        const OPS_PER_CLIENT: usize = 5;
+        const OPS_PER_CLIENT: usize = 100;
 
         // Create a barrier to synchronize client start
         let barrier = common::create_barrier(NUM_CLIENTS);
@@ -151,6 +154,99 @@ mod tests {
             Frame::Bulk(bytes) => assert_eq!(bytes_to_i64(&bytes).unwrap(), expected),
             frame => panic!("Expected bulk frame. Got: {:?}", frame),
         };
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn stress_test_single_client() {
+        let test_server = common::TestServer::new().await;
+        let client = Arc::new(tokio::sync::Mutex::new(test_server.create_client().await));
+
+        // Number of concurrent tasks
+        let num_tasks = 128;
+
+        // Synchronization barrier to start all tasks simultaneously
+        let barrier = common::create_barrier(num_tasks);
+
+        let mut handles = Vec::new();
+
+        for task_id in 0..num_tasks {
+            let client_clone = Arc::clone(&client);
+            let barrier_clone = Arc::clone(&barrier);
+
+            let handle = tokio::task::spawn(async move {
+                // Wait for all tasks to be ready
+                barrier_clone.wait().await;
+
+                // Unique key for each task
+                let key = format!("test_key_{}", task_id);
+                let value = format!("test_value_{}", task_id);
+
+                // Perform a series of operations
+                {
+                    let mut client_guard = client_clone.lock().await;
+
+                    // Set a key
+                    client_guard
+                        .set(key.clone(), Bytes::from(value.clone()))
+                        .await
+                        .expect("Set failed");
+
+                    // Increment a counter
+                    client_guard
+                        .incr(format!("counter_{}", task_id))
+                        .await
+                        .expect("Increment failed");
+
+                    // Get the value
+                    let result = client_guard.get(key.clone()).await.expect("Get failed");
+                    assert!(result.is_some(), "Get should return a value");
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all tasks to complete
+        for handle in handles {
+            handle.await.expect("Task failed");
+        }
+
+        // Final verification
+        {
+            let mut client_guard = client.lock().await;
+
+            // Check total number of keys created
+            let keys_result = client_guard
+                .keys("test_key_*".to_string())
+                .await
+                .expect("Keys failed");
+
+            // Verify keys match the number of tasks
+            if let Some(Frame::Array(keys)) = keys_result {
+                assert_eq!(keys.len(), num_tasks, "Not all keys were created");
+            }
+
+            let size = client_guard
+                .dbsize()
+                .await
+                .expect("DBSIZE failed")
+                .expect("Expected DBSIZE response");
+            assert_eq!(size, integer!((2 * num_tasks) as i64));
+
+            let response = client_guard
+                .flushdb()
+                .await
+                .expect("FLUSH failed")
+                .expect("Expected FLUSH response");
+            assert_eq!(response, simple!("OK"));
+
+            let size = client_guard
+                .dbsize()
+                .await
+                .expect("DBSIZE failed")
+                .expect("Expected DBSIZE response");
+            assert_eq!(size, integer!(0));
+        }
     }
 
     #[tokio::test]
@@ -279,11 +375,12 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         // Verify that the key has been removed
-        let response = client.get(key.to_string()).await.unwrap().unwrap();
-        assert_eq!(response, null!());
-
         let response = client.dbsize().await.unwrap().unwrap();
         assert_eq!(response, integer!(0));
+
+        // Double check
+        let response = client.get(key.to_string()).await.unwrap().unwrap();
+        assert_eq!(response, null!());
     }
 
     #[tokio::test]

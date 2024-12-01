@@ -24,7 +24,7 @@ impl RedisClient {
         })
     }
     /// Send a command and receive a response
-    pub async fn execute(&mut self, command: Command) -> anyhow::Result<Option<Frame>> {
+    async fn execute(&mut self, command: Command) -> anyhow::Result<Option<Frame>> {
         // Convert command to frame
         let frame = match command {
             Command::Get { key } => Frame::Array(vec![
