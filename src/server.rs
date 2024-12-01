@@ -237,6 +237,15 @@ impl RedisServer {
                     Err(e) => Frame::Error(format!("ERR {}", e)),
                 }
             }
+            Command::Lolwut(frames) => {
+                let mut frame = Frame::Array(frames);
+                match frame.append(Frame::Simple(
+                    "https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi".to_string(),
+                )) {
+                    Ok(_) => frame,
+                    Err(e) => Frame::Error(format!("ERR {}", e)),
+                }
+            }
         }
     }
 }

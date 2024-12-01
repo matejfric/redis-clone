@@ -48,6 +48,10 @@ impl TestServer {
     pub fn port(&self) -> u16 {
         self.port
     }
+
+    pub fn addr(&self) -> String {
+        format!("{}:{}", SERVER_ADDR, self.port)
+    }
 }
 
 /// Initializes logger for a test (call at the start of test functions)

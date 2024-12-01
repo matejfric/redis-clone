@@ -1,11 +1,12 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use atoi::atoi;
 use bytes::{Buf, Bytes};
 use std::io::Cursor;
 
 use crate::err::RedisProtocolError;
+use crate::{integer, null, simple};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Frame {
     Simple(String),    // `+{string data}\r\n`
     Error(String),     // `-{error message}\r\n`
@@ -63,17 +64,17 @@ impl Frame {
     /// Parse a frame from the buffer. Assumes that the frame was validated by `Frame::is_parsable`.
     pub fn parse(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<Frame, RedisProtocolError> {
         match cursor.get_u8() {
-            b'_' => Ok(Frame::Null),
+            b'_' => Ok(null!()),
             b'+' | b'-' => {
                 let line = get_line(cursor)?;
-                Ok(Frame::Simple(String::from_utf8_lossy(line).to_string()))
+                Ok(simple!(String::from_utf8_lossy(line).to_string()))
             }
             b':' => {
                 let line = get_line(cursor)?;
                 let num = atoi::<i64>(line).ok_or_else(|| {
                     RedisProtocolError::ConversionError(String::from_utf8_lossy(line).to_string())
                 })?;
-                Ok(Frame::Integer(num))
+                Ok(integer!(num))
             }
             b'$' => {
                 let start = cursor.position() as usize;
@@ -127,8 +128,15 @@ impl Frame {
         }
     }
 
-    pub fn bulk_from_str(s: &str) -> Frame {
-        Frame::Bulk(Bytes::copy_from_slice(s.as_bytes()))
+    /// Appends a new Frame to the Array variant.
+    /// Returns a Result indicating success or error if called on a non-Array variant.
+    pub fn append(&mut self, frame: Frame) -> anyhow::Result<()> {
+        if let Frame::Array(ref mut frames) = self {
+            frames.push(frame);
+            Ok(())
+        } else {
+            bail!("Cannot append to a non-Array Frame")
+        }
     }
 }
 

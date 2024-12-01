@@ -8,7 +8,7 @@ mod tests {
     use std::io::Cursor;
 
     use redis_clone::err::RedisProtocolError;
-    use redis_clone::frame::Frame;
+    use redis_clone::Frame;
 
     #[test]
     fn test_simple_string() {

@@ -16,6 +16,7 @@ pub enum Command {
     FlushDB,
     DBSize,
     Unknown(String),
+    Lolwut(Vec<Frame>), // Custom command
 }
 
 impl Command {
@@ -107,6 +108,13 @@ impl Command {
                         } else {
                             let pattern = Self::bulk_to_string(parts.remove(0))?;
                             Ok(Command::Keys { pattern })
+                        }
+                    }
+                    "LOLWUT" => {
+                        if parts.is_empty() {
+                            Err(Self::wrong_number_of_arguments("LOLWUT", 1, parts.len()))
+                        } else {
+                            Ok(Command::Lolwut(parts))
                         }
                     }
                     _ => Ok(Command::Unknown(command)),

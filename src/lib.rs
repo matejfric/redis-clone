@@ -1,12 +1,19 @@
-pub mod client;
-pub mod cmd;
+mod client;
+mod cmd;
+mod connection;
+mod db;
+mod frame;
+mod macros;
+mod server;
+
 pub mod common;
-pub mod connection;
 pub mod constants;
-pub mod db;
 pub mod err;
-pub mod frame;
-pub mod server;
 
 pub use client::RedisClient;
+pub use connection::Connection;
+pub use db::DB;
+pub use frame::Frame;
+#[allow(unused_imports)]
+pub use macros::*;
 pub use server::RedisServer;

@@ -1,7 +1,7 @@
 use assert_matches::assert_matches;
 
 use redis_clone::common::bytes_to_i64;
-use redis_clone::frame::Frame;
+use redis_clone::Frame;
 use redis_clone::RedisClient;
 
 mod common;
@@ -19,7 +19,7 @@ impl TestClient for RedisClient {
             .await
             .unwrap()
             .unwrap();
-        assert_matches!(response, Frame::Simple(_));
+        assert_eq!(response, Frame::Simple("OK".to_string()));
     }
 }
 

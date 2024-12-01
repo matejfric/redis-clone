@@ -9,11 +9,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 ///
 /// ## Example
 /// ```
-/// use bytes::Bytes;
-/// use redis_clone::db::DB;
-///
-/// let db = DB::new();
-/// db.set("apples".to_string(), Bytes::from("10"));
+/// let db = redis_clone::DB::new();
+/// db.set("apples".to_string(), bytes::Bytes::from("10"));
 /// let apples = db.get("apples").unwrap();
 /// println!("Apples: {}", std::str::from_utf8(&apples).unwrap());
 /// ```
@@ -57,6 +54,7 @@ impl DB {
         let db = self.get_lock();
         db.len()
     }
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

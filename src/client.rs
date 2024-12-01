@@ -64,6 +64,7 @@ impl RedisClient {
                 Frame::Bulk(Bytes::from(pattern)),
             ]),
             Command::Unknown(cmd) => Frame::Array(vec![Frame::Bulk(Bytes::from(cmd))]),
+            Command::Lolwut(frames) => Frame::Array(frames),
         };
 
         // Write the frame to the connection
