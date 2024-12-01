@@ -162,12 +162,16 @@ fn has_crlf_with_checks(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisP
     while cursor.has_remaining() {
         let byte = cursor.get_u8();
         if byte == b'\r' {
-            if cursor.has_remaining() && cursor.get_u8() == b'\n' {
-                return Ok(());
+            if cursor.has_remaining() {
+                if cursor.get_u8() == b'\n' {
+                    return Ok(());
+                }
+            } else {
+                return Err(RedisProtocolError::NotEnoughData);
             }
             return Err(RedisProtocolError::ExcessiveNewline);
         }
-        if byte == b'\n' {
+        if byte == b'\n' && cursor.has_remaining() && cursor.get_u8() != b'\r' {
             return Err(RedisProtocolError::ExcessiveNewline);
         }
     }
