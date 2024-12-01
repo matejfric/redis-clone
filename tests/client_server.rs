@@ -30,6 +30,14 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn connection_timeout() {
+        // Try connecting to an invalid address with a short timeout.
+        let result = RedisClient::new("123.0.0.1", 9999).await;
+        // There will be `redis_clone::constants::CLIENT_CONNECTION_TIMEOUT` long delay before timeout.
+        assert!(result.is_err(), "Connection should fail");
+    }
+
+    #[tokio::test]
     async fn ping() {
         common::get_or_init_logger();
 
