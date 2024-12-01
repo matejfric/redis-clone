@@ -25,13 +25,6 @@ if ! cargo test; then
     exit 1
 fi
 
-echo "Running cargo tests on a single thread..."
-if ! cargo test -- --test-threads 1; then
-    echo "Tests failed. Please fix before committing."
-    cd "$CURRENT_DIR"
-    exit 1
-fi
-
 # Return to the original directory
 cd "$CURRENT_DIR"
 
