@@ -161,17 +161,21 @@ fn seek_newline(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<usize, RedisProtoc
 fn has_crlf_with_checks(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<(), RedisProtocolError> {
     while cursor.has_remaining() {
         let byte = cursor.get_u8();
+        let has_remaining = cursor.has_remaining();
         if byte == b'\r' {
-            if cursor.has_remaining() {
+            if has_remaining {
                 if cursor.get_u8() == b'\n' {
                     return Ok(());
                 }
             } else {
+                // We might get the missing byte later
                 return Err(RedisProtocolError::NotEnoughData);
             }
+            // Delimiter must be `\r\n`
             return Err(RedisProtocolError::ExcessiveNewline);
         }
-        if byte == b'\n' && cursor.has_remaining() && cursor.get_u8() != b'\r' {
+        if byte == b'\n' && has_remaining {
+            // Early return if there is an extra newline character (delimiter must be `\r\n`)
             return Err(RedisProtocolError::ExcessiveNewline);
         }
     }

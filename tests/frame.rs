@@ -182,6 +182,34 @@ mod tests {
     }
 
     #[test]
+    fn incorrect_delimiter_in_simple_string() {
+        let data = b"+Hello from LFCR\n\r";
+        let mut cursor = Cursor::new(&data[..]);
+
+        assert!(
+            matches!(
+                Frame::is_parsable(&mut cursor),
+                Err(RedisProtocolError::ExcessiveNewline)
+            ),
+            "Expected ExcessiveNewline"
+        );
+    }
+
+    #[test]
+    fn incorrect_delimiter_in_bulk_string() {
+        let data = b"$3\nabc\n\r";
+        let mut cursor = Cursor::new(&data[..]);
+
+        assert!(
+            matches!(
+                Frame::is_parsable(&mut cursor),
+                Err(RedisProtocolError::NotEnoughData)
+            ),
+            "Expected NotEnoughData"
+        );
+    }
+
+    #[test]
     fn test_null_bulk_string() {
         get_or_init_logger();
 
