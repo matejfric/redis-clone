@@ -30,6 +30,62 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn ping() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        let response = client.ping(None).await.unwrap().unwrap();
+        assert_eq!(response, simple!("PONG"));
+
+        let response = client
+            .ping(Some("Hello, Redis!".to_string()))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(response, simple!("Hello, Redis!"));
+    }
+
+    #[tokio::test]
+    async fn del_exists() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        // Set some keys
+        let keys = vec!["key1", "key2", "key3"];
+        for key in &keys {
+            client
+                .set_key_value(key.to_string(), "value".to_string())
+                .await;
+        }
+
+        // Check if keys exist
+        let response = client
+            .exists(keys.iter().map(|s| s.to_string()).collect())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(response, integer!(3));
+
+        // Delete keys
+        let response = client
+            .del(keys.iter().map(|s| s.to_string()).collect())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(response, integer!(3));
+
+        // Check if keys exist
+        for key in &keys {
+            let response = client.exists(vec![key.to_string()]).await.unwrap().unwrap();
+            assert_eq!(response, integer!(0));
+        }
+    }
+
+    #[tokio::test]
     async fn concurrent_increment() {
         common::get_or_init_logger();
 
@@ -90,7 +146,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn keys_command() {
+    async fn keys() {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
@@ -161,7 +217,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn flushdb_command() {
+    async fn flushdb() {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
@@ -187,7 +243,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn expire_command() {
+    async fn expire() {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
