@@ -438,4 +438,20 @@ mod tests {
         client.send_get("key1").await;
         client.assert_response(b"$-1\r\n").await;
     }
+
+    #[tokio::test]
+    async fn wrong_number_of_arguments() {
+        let port = common::TestServer::new().await.port();
+        let mut client = TestClient::new(port).await;
+
+        // Send a command with wrong number of arguments
+        client.send("*1\r\n$3\r\nSET\r\n").await;
+
+        // Read the error response
+        let expected_err =
+            RedisCommandError::WrongNumberOfArguments("SET".to_string(), "2 or 4".to_string(), 0);
+        client
+            .assert_response(format!("-ERR {}\r\n", expected_err).as_bytes())
+            .await;
+    }
 }
