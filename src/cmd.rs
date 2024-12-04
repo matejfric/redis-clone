@@ -36,14 +36,14 @@ impl Command {
                 match command.to_uppercase().as_str() {
                     "GET" => {
                         if parts.len() != 1 {
-                            return Err(Self::wrong_number_of_arguments("GET", 1, parts.len()));
+                            return Err(Self::wrong_number_of_arguments("GET", "1", parts.len()));
                         }
                         let key = Self::bulk_to_string(parts.remove(0))?;
                         Ok(Command::Get { key })
                     }
                     "SET" => {
-                        if parts.len() != 2 {
-                            return Err(Self::wrong_number_of_arguments("SET", 2, parts.len()));
+                        if parts.len() < 2 {
+                            return Err(Self::wrong_number_of_arguments("SET", "2", parts.len()));
                         }
                         let key = Self::bulk_to_string(parts.remove(0))?;
                         let val = Self::bulk_to_bytes(parts.remove(0))?;
@@ -57,12 +57,16 @@ impl Command {
                             Ok(Command::Ping { msg: Some(msg) })
                         } else {
                             // TODO: variable number of arguments
-                            return Err(Self::wrong_number_of_arguments("PING", 1, parts.len()));
+                            return Err(Self::wrong_number_of_arguments(
+                                "PING",
+                                "0 or 1",
+                                parts.len(),
+                            ));
                         }
                     }
                     "INCR" => {
                         if parts.len() != 1 {
-                            return Err(Self::wrong_number_of_arguments("INCR", 1, parts.len()));
+                            return Err(Self::wrong_number_of_arguments("INCR", "1", parts.len()));
                         }
                         let key = Self::bulk_to_string(parts.remove(0))?;
                         Ok(Command::Increment { key })
@@ -71,20 +75,19 @@ impl Command {
                         if parts.is_empty() {
                             Ok(Command::FlushDB)
                         } else {
-                            Err(Self::wrong_number_of_arguments("FLUSHDB", 0, parts.len()))
+                            Err(Self::wrong_number_of_arguments("FLUSHDB", "0", parts.len()))
                         }
                     }
                     "DBSIZE" => {
                         if parts.is_empty() {
                             Ok(Command::DBSize)
                         } else {
-                            Err(Self::wrong_number_of_arguments("DBSIZE", 0, parts.len()))
+                            Err(Self::wrong_number_of_arguments("DBSIZE", "0", parts.len()))
                         }
                     }
                     "DEL" => {
                         if parts.is_empty() {
-                            // TODO: >1 arguments
-                            return Err(Self::wrong_number_of_arguments("DEL", 1, parts.len()));
+                            return Err(Self::wrong_number_of_arguments("DEL", ">0", parts.len()));
                         }
                         let keys = parts
                             .into_iter()
@@ -94,8 +97,11 @@ impl Command {
                     }
                     "EXISTS" => {
                         if parts.is_empty() {
-                            // TODO: >1 arguments
-                            return Err(Self::wrong_number_of_arguments("EXISTS", 1, parts.len()));
+                            return Err(Self::wrong_number_of_arguments(
+                                "EXISTS",
+                                ">0",
+                                parts.len(),
+                            ));
                         }
                         let keys = parts
                             .into_iter()
@@ -105,7 +111,7 @@ impl Command {
                     }
                     "KEYS" => {
                         if parts.is_empty() {
-                            Err(Self::wrong_number_of_arguments("KEYS", 1, parts.len()))
+                            Err(Self::wrong_number_of_arguments("KEYS", "1", parts.len()))
                         } else {
                             let pattern = Self::bulk_to_string(parts.remove(0))?;
                             Ok(Command::Keys { pattern })
@@ -113,14 +119,18 @@ impl Command {
                     }
                     "LOLWUT" => {
                         if parts.is_empty() {
-                            Err(Self::wrong_number_of_arguments("LOLWUT", 1, parts.len()))
+                            Err(Self::wrong_number_of_arguments("LOLWUT", "1", parts.len()))
                         } else {
                             Ok(Command::Lolwut(parts))
                         }
                     }
                     "EXPIRE" => {
                         if parts.len() != 2 {
-                            return Err(Self::wrong_number_of_arguments("EXPIRE", 2, parts.len()));
+                            return Err(Self::wrong_number_of_arguments(
+                                "EXPIRE",
+                                "2",
+                                parts.len(),
+                            ));
                         }
                         let key = Self::bulk_to_string(parts.remove(0))?;
                         let seconds = Self::bulk_to_string(parts.remove(0))?;
@@ -144,10 +154,10 @@ impl Command {
 
     fn wrong_number_of_arguments(
         command: &str,
-        expected: usize,
+        expected: &str,
         actual: usize,
     ) -> RedisCommandError {
-        RedisCommandError::WrongNumberOfArguments(command.to_string(), expected, actual)
+        RedisCommandError::WrongNumberOfArguments(command.to_string(), expected.to_string(), actual)
     }
 
     fn bulk_to_string(frame: Frame) -> anyhow::Result<String, RedisCommandError> {

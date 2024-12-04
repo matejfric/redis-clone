@@ -30,7 +30,7 @@ pub enum RedisCommandError {
     ParseDecimalError(String),
 
     #[error("{0} expects {1} arguments, got {2}")]
-    WrongNumberOfArguments(String, usize, usize),
+    WrongNumberOfArguments(String, String, usize),
 
     #[error("Not implemented error: {0}")]
     NotImplemented(String),
