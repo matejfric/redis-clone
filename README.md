@@ -1,6 +1,9 @@
 # Simple Redis Clone
 
+[![GitHub](https://badgen.net/badge/icon/github?icon=github&label)](https://github.com/matejfric/redis-clone)
 [![codecov](https://codecov.io/github/matejfric/redis-clone/graph/badge.svg?token=5MVXON09TG)](https://codecov.io/github/matejfric/redis-clone)
+[![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
+[![GitHub license](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/matejfric/redis-clone/blob/main/LICENSE)
 
 ## 1. Usage
 
