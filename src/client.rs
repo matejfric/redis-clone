@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bytes::Bytes;
 use tokio::{net::TcpStream, time::timeout};
 
@@ -31,11 +33,24 @@ impl RedisClient {
                 Frame::Bulk(Bytes::from("GET")),
                 Frame::Bulk(Bytes::from(key)),
             ]),
-            Command::Set { key, val } => Frame::Array(vec![
-                Frame::Bulk(Bytes::from("SET")),
-                Frame::Bulk(Bytes::from(key)),
-                Frame::Bulk(val),
-            ]),
+            Command::Set {
+                key,
+                val,
+                expiration,
+            } => {
+                let mut cmd = Frame::Array(vec![
+                    Frame::Bulk(Bytes::from("SET")),
+                    Frame::Bulk(Bytes::from(key)),
+                    Frame::Bulk(val),
+                ]);
+                if expiration.is_some() {
+                    cmd.append(Frame::Bulk(Bytes::from("PX")))?;
+                    cmd.append(Frame::Bulk(Bytes::from(
+                        expiration.unwrap().as_millis().to_string(),
+                    )))?;
+                }
+                cmd
+            }
             Command::Ping { msg } => match msg {
                 Some(message) => Frame::Array(vec![
                     Frame::Bulk(Bytes::from("PING")),
@@ -97,8 +112,17 @@ impl RedisClient {
     }
 
     /// Set a key-value pair
-    pub async fn set(&mut self, key: String, val: Bytes) -> anyhow::Result<Option<Frame>> {
-        let command = Command::Set { key, val };
+    pub async fn set(
+        &mut self,
+        key: String,
+        val: Bytes,
+        expiration: Option<Duration>,
+    ) -> anyhow::Result<Option<Frame>> {
+        let command = Command::Set {
+            key,
+            val,
+            expiration,
+        };
         self.execute(command).await
     }
 

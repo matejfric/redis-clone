@@ -18,7 +18,7 @@ impl TestClient for RedisClient {
     /// Set a key to a value
     async fn set_key_value(&mut self, key: &str, value: &str) {
         let response = self
-            .set(key.to_string(), value.to_string().into())
+            .set(key.to_string(), value.to_string().into(), None)
             .await
             .unwrap()
             .unwrap();
@@ -28,6 +28,8 @@ impl TestClient for RedisClient {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     #[tokio::test]
@@ -351,11 +353,7 @@ mod tests {
 
         // Set a key with an expiration
         let key = "key";
-        client
-            .set(key.to_string(), "value".into())
-            .await
-            .unwrap()
-            .unwrap();
+        client.set_key_value(key, "value").await;
         let response = client.expire(key.to_string(), 1).await.unwrap().unwrap();
         assert_eq!(response, integer!(1));
 
@@ -392,5 +390,35 @@ mod tests {
             simple!("https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi"),
         );
         assert_eq!(response, expected);
+    }
+
+    #[tokio::test]
+    async fn set_with_expiration() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await;
+
+        // Set a key with an expiration
+        let key = "key";
+        let expiration = Duration::from_millis(1500);
+        let value = "that will expire in 1500 milliseconds";
+        let response = client
+            .set(key.to_string(), value.to_string().into(), Some(expiration))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(response, simple!("OK"));
+
+        // Verify that the key exists
+        let response = client.get(key.to_string()).await.unwrap().unwrap();
+        assert_eq!(response, bulk!(value));
+
+        // Wait for the key to expire
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // Verify that the key has been removed
+        let response = client.get(key.to_string()).await.unwrap().unwrap();
+        assert_eq!(response, null!());
     }
 }

@@ -179,8 +179,12 @@ impl RedisServer {
                 Some(value) => Frame::Bulk(value),
                 None => Frame::Null,
             },
-            Command::Set { key, val } => {
-                db.set(key, val, None).await;
+            Command::Set {
+                key,
+                val,
+                expiration,
+            } => {
+                db.set(key, val, expiration).await;
                 Frame::Simple("OK".to_string())
             }
             Command::Ping { msg } => match msg {

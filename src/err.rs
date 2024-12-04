@@ -29,6 +29,9 @@ pub enum RedisCommandError {
     #[error("Failed to parse decimal: {0}")]
     ParseDecimalError(String),
 
+    #[error("Failed to parse integer: {0}")]
+    ParseIntegerError(String),
+
     #[error("{0} expects {1} arguments, got {2}")]
     WrongNumberOfArguments(String, String, usize),
 

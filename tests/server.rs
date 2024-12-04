@@ -410,4 +410,32 @@ mod tests {
             .assert_size((NUM_CLIENTS * OPS_PER_CLIENT) as i64)
             .await;
     }
+
+    #[tokio::test]
+    async fn set_with_expiration() {
+        common::get_or_init_logger();
+
+        let port = common::TestServer::new().await.port();
+        let mut client = TestClient::new(port).await;
+
+        // Set a key with expiration set to 1 second
+        client
+            .send("*5\r\n$3\r\nSET\r\n$4\r\nkey1\r\n$5\r\nvalue\r\n$2\r\nEX\r\n$1\r\n1\r\n")
+            .await;
+        client.assert_response(b"+OK\r\n").await;
+
+        // Sleep for a while
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        // Get the key before expiration
+        client.send_get("key1").await;
+        client.assert_response(b"$5\r\nvalue\r\n").await;
+
+        // Wait for the key to expire
+        tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+
+        // Get the key after expiration
+        client.send_get("key1").await;
+        client.assert_response(b"$-1\r\n").await;
+    }
 }

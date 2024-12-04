@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bytes::Bytes;
 
 use crate::common::bytes_to_string;
@@ -6,18 +8,37 @@ use crate::frame::Frame;
 
 #[derive(Debug)]
 pub enum Command {
-    Get { key: String },
-    Set { key: String, val: Bytes },
-    Ping { msg: Option<String> },
-    Del { keys: Vec<String> },
-    Exists { keys: Vec<String> },
-    Increment { key: String },
-    Keys { pattern: String },
+    Get {
+        key: String,
+    },
+    Set {
+        key: String,
+        val: Bytes,
+        expiration: Option<Duration>,
+    },
+    Ping {
+        msg: Option<String>,
+    },
+    Del {
+        keys: Vec<String>,
+    },
+    Exists {
+        keys: Vec<String>,
+    },
+    Increment {
+        key: String,
+    },
+    Keys {
+        pattern: String,
+    },
     FlushDB,
     DBSize,
     Unknown(String),
     Lolwut(Vec<Frame>), // Custom command
-    Expire { key: String, seconds: u64 },
+    Expire {
+        key: String,
+        seconds: u64,
+    },
 }
 
 impl Command {
@@ -43,11 +64,50 @@ impl Command {
                     }
                     "SET" => {
                         if parts.len() < 2 {
-                            return Err(Self::wrong_number_of_arguments("SET", "2", parts.len()));
+                            return Err(Self::wrong_number_of_arguments(
+                                "SET",
+                                "2 or 4",
+                                parts.len(),
+                            ));
                         }
                         let key = Self::bulk_to_string(parts.remove(0))?;
                         let val = Self::bulk_to_bytes(parts.remove(0))?;
-                        Ok(Command::Set { key, val })
+                        if parts.is_empty() {
+                            return Ok(Command::Set {
+                                key,
+                                val,
+                                expiration: None,
+                            });
+                        }
+                        if parts.len() != 2 {
+                            return Err(Self::wrong_number_of_arguments(
+                                "SET",
+                                "2 or 4",
+                                parts.len(),
+                            ));
+                        }
+                        let expiration = Self::bulk_to_string(parts.remove(0))?;
+                        match expiration.to_uppercase().as_str() {
+                            "PX" => {
+                                let px = Self::bulk_to_u64(parts.remove(0))?;
+                                Ok(Command::Set {
+                                    key,
+                                    val,
+                                    expiration: Some(Duration::from_millis(px)),
+                                })
+                            }
+                            "EX" => {
+                                let ex = Self::bulk_to_u64(parts.remove(0))?;
+                                Ok(Command::Set {
+                                    key,
+                                    val,
+                                    expiration: Some(Duration::from_secs(ex)),
+                                })
+                            }
+                            _ => Err(RedisCommandError::NotImplemented(
+                                "Expected EX <seconds> or PX <milliseconds>".to_string(),
+                            )),
+                        }
                     }
                     "PING" => {
                         if parts.is_empty() {
@@ -148,6 +208,17 @@ impl Command {
             Frame::Simple(s) if s.to_uppercase() == "PING" => Ok(Command::Ping { msg: None }),
             _ => Err(RedisCommandError::InvalidFrame(
                 "Expected array frame".to_string(),
+            )),
+        }
+    }
+
+    fn bulk_to_u64(frame: Frame) -> anyhow::Result<u64, RedisCommandError> {
+        match frame {
+            Frame::Bulk(bytes) => bytes_to_string(&bytes)?
+                .parse::<u64>()
+                .map_err(|_| RedisCommandError::ParseIntegerError("Invalid u64".to_string())),
+            _ => Err(RedisCommandError::InvalidFrame(
+                "Expected bulk string".to_string(),
             )),
         }
     }

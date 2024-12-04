@@ -66,7 +66,7 @@ The difference between simple strings and errors in RESP is that clients should 
 - [x] Implement selected Redis commands.
   - [x] [`PING`](https://redis.io/docs/latest/commands/ping/)
   - [x] [`SET`](https://redis.io/docs/latest/commands/set/)
-    - [ ] Expiration, e.g., `SET mykey "will expire in a minute" EX 60`
+    - [x] Expiration, e.g., `SET mykey "will expire in a minute" EX 60`
   - [x] [`GET`](https://redis.io/docs/latest/commands/get/)
   - [x] [`DEL`](https://redis.io/docs/latest/commands/del/)
   - [x] [`INCR`](https://redis.io/docs/latest/commands/incr/)
@@ -94,7 +94,7 @@ sh setup-git-hooks.sh
 
 ### 4.1. Testing
 
-Tests are before each push to the repository with `.githooks/pre-push`. To run tests manually:
+Tests are run before each push to the repository with [`.githooks/pre-push`](.githooks/pre-push). To run tests manually:
 
 - Run tests with `cargo test`.
 - Run tests on a single thread with `cargo test -- --test-threads=1`.
