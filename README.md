@@ -75,10 +75,11 @@ The difference between simple strings and errors in RESP is that clients should 
   - [x] [`DBSIZE`](https://redis.io/docs/latest/commands/dbsize/)
   - [x] [`KEYS`](https://redis.io/docs/latest/commands/keys/)
   - [x] [`EXPIRE`](https://redis.io/docs/latest/commands/expire/)
-  - [ ] [`TTL`](https://redis.io/docs/latest/commands/ttl/)
+  - [x] [`TTL`](https://redis.io/docs/latest/commands/ttl/)
 
 ### 3.1. Optional
 
+- [x] Limit maximum number of active clients.
 - [ ] [Redis pipelining](https://redis.io/docs/latest/develop/use/pipelining/)
 - [ ] [Tokio codec](https://docs.rs/tokio-util/latest/tokio_util/codec/index.html)
 - [ ] [Sharded DB](https://tokio.rs/tokio/tutorial/shared-state#mutex-sharding)
