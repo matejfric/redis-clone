@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -44,7 +45,10 @@ pub enum Command {
 impl Command {
     pub fn from_frame(frame: Frame) -> anyhow::Result<Command, RedisCommandError> {
         match frame {
-            Frame::Array(mut parts) => {
+            Frame::Array(parts) => {
+                // Should be constant time without reallocation
+                let mut parts = VecDeque::from(parts);
+
                 if parts.is_empty() {
                     return Err(RedisCommandError::InvalidCommand(
                         "Empty command".to_string(),
@@ -52,14 +56,14 @@ impl Command {
                 }
 
                 // Get the command name
-                let command = Self::bulk_to_string(parts.remove(0))?;
+                let command = Self::bulk_to_string(parts.pop_front().unwrap())?;
 
                 match command.to_uppercase().as_str() {
                     "GET" => {
                         if parts.len() != 1 {
                             return Err(Self::wrong_number_of_arguments("GET", "1", parts.len()));
                         }
-                        let key = Self::bulk_to_string(parts.remove(0))?;
+                        let key = Self::bulk_to_string(parts.pop_front().unwrap())?;
                         Ok(Command::Get { key })
                     }
                     "SET" => {
@@ -70,8 +74,8 @@ impl Command {
                                 parts.len(),
                             ));
                         }
-                        let key = Self::bulk_to_string(parts.remove(0))?;
-                        let val = Self::bulk_to_bytes(parts.remove(0))?;
+                        let key = Self::bulk_to_string(parts.pop_front().unwrap())?;
+                        let val = Self::bulk_to_bytes(parts.pop_front().unwrap())?;
                         if parts.is_empty() {
                             return Ok(Command::Set {
                                 key,
@@ -86,10 +90,10 @@ impl Command {
                                 parts.len(),
                             ));
                         }
-                        let expiration = Self::bulk_to_string(parts.remove(0))?;
+                        let expiration = Self::bulk_to_string(parts.pop_front().unwrap())?;
                         match expiration.to_uppercase().as_str() {
                             "PX" => {
-                                let px = Self::bulk_to_u64(parts.remove(0))?;
+                                let px = Self::bulk_to_u64(parts.pop_front().unwrap())?;
                                 Ok(Command::Set {
                                     key,
                                     val,
@@ -97,7 +101,7 @@ impl Command {
                                 })
                             }
                             "EX" => {
-                                let ex = Self::bulk_to_u64(parts.remove(0))?;
+                                let ex = Self::bulk_to_u64(parts.pop_front().unwrap())?;
                                 Ok(Command::Set {
                                     key,
                                     val,
@@ -113,7 +117,7 @@ impl Command {
                         if parts.is_empty() {
                             Ok(Command::Ping { msg: None })
                         } else if parts.len() == 1 {
-                            let msg = Self::bulk_to_string(parts.remove(0))?;
+                            let msg = Self::bulk_to_string(parts.pop_front().unwrap())?;
                             Ok(Command::Ping { msg: Some(msg) })
                         } else {
                             // TODO: variable number of arguments
@@ -128,7 +132,7 @@ impl Command {
                         if parts.len() != 1 {
                             return Err(Self::wrong_number_of_arguments("INCR", "1", parts.len()));
                         }
-                        let key = Self::bulk_to_string(parts.remove(0))?;
+                        let key = Self::bulk_to_string(parts.pop_front().unwrap())?;
                         Ok(Command::Increment { key })
                     }
                     "FLUSHDB" => {
@@ -173,7 +177,7 @@ impl Command {
                         if parts.is_empty() {
                             Err(Self::wrong_number_of_arguments("KEYS", "1", parts.len()))
                         } else {
-                            let pattern = Self::bulk_to_string(parts.remove(0))?;
+                            let pattern = Self::bulk_to_string(parts.pop_front().unwrap())?;
                             Ok(Command::Keys { pattern })
                         }
                     }
@@ -181,7 +185,7 @@ impl Command {
                         if parts.is_empty() {
                             Err(Self::wrong_number_of_arguments("LOLWUT", "1", parts.len()))
                         } else {
-                            Ok(Command::Lolwut(parts))
+                            Ok(Command::Lolwut(parts.into()))
                         }
                     }
                     "EXPIRE" => {
@@ -192,8 +196,8 @@ impl Command {
                                 parts.len(),
                             ));
                         }
-                        let key = Self::bulk_to_string(parts.remove(0))?;
-                        let seconds = Self::bulk_to_string(parts.remove(0))?;
+                        let key = Self::bulk_to_string(parts.pop_front().unwrap())?;
+                        let seconds = Self::bulk_to_string(parts.pop_front().unwrap())?;
                         let seconds = seconds.parse::<u64>().map_err(|_| {
                             RedisCommandError::ParseDecimalError(format!(
                                 "Invalid seconds: {}",
