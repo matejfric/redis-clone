@@ -8,7 +8,7 @@ use tokio::time::{timeout, Duration};
 
 use crate::cmd::Command;
 use crate::connection::Connection;
-use crate::constants::TIMEOUT_DURATION;
+use crate::constants::{SERVER_SHUTDOWN_CONNECTION_TIMEOUT, TIMEOUT_DURATION};
 use crate::db::DB;
 use crate::err::RedisCommandError;
 use crate::frame::Frame;
@@ -18,6 +18,7 @@ pub struct RedisServer {
     listener: TcpListener,
     db: DB,
     shutdown: broadcast::Sender<()>,
+    handles: Vec<tokio::task::JoinHandle<()>>,
 
     address: String,
     port: u16, // default Redis port is 6379
@@ -33,6 +34,7 @@ impl RedisServer {
             listener,
             db,
             shutdown,
+            handles: Vec::new(),
             address: address.to_string(),
             port,
         })
@@ -47,7 +49,7 @@ impl RedisServer {
     }
 
     /// Start the Redis server and listen for incoming connections.
-    pub async fn run(&self) -> anyhow::Result<()> {
+    pub async fn run(&mut self) -> anyhow::Result<()> {
         log::info!(
             "Redis server is running on {}:{}. Ready to accept connections.",
             self.address(),
@@ -58,13 +60,13 @@ impl RedisServer {
 
         // Setup Ctrl+C signal to shutdown the server.
         let shutdown_handle = self.get_shutdown_handle();
-        tokio::spawn(async move {
+        self.handles.push(tokio::spawn(async move {
             if let Err(e) = tokio::signal::ctrl_c().await {
                 log::error!("Failed to listen for Ctrl+C: {}", e);
                 return;
             }
             let _ = shutdown_handle.send(());
-        });
+        }));
 
         loop {
             let accept = self.accept_connection();
@@ -76,12 +78,12 @@ impl RedisServer {
                             let shutdown_rx = self.shutdown.subscribe();
 
                             // Spawn a new task for each connection.
-                            tokio::spawn(async move {
+                            self.handles.push(tokio::spawn(async move {
                                 match Self::handle_client_connection(connection, db, addr, shutdown_rx).await {
                                     Ok(_) => log::info!("Closed connection: {}", addr),
                                     Err(e) => log::error!("Connection error for {}: {}", addr, e),
                                 };
-                            });
+                            }));
                         }
                         Err(e) => {
                             log::error!("Accept error: {}", e);
@@ -96,13 +98,22 @@ impl RedisServer {
             }
         }
 
+        self.shutdown().await;
+
+        Ok(())
+    }
+
+    async fn shutdown(&mut self) {
         // Stop database expiration task
         self.db.shutdown().await;
 
-        // Give connections time to close gracefully
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        Ok(())
+        // Stop all active connections
+        for handle in self.handles.drain(..) {
+            match timeout(SERVER_SHUTDOWN_CONNECTION_TIMEOUT, handle).await {
+                Ok(_) => log::debug!("Connection closed"),
+                Err(e) => log::error!("Error shutting down connection: {}", e),
+            }
+        }
     }
 
     /// Get a handle to the shutdown signal.

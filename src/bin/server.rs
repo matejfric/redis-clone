@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize the logger.
     env_logger::init();
 
-    let server = RedisServer::new("127.0.0.1", 6379).await?;
+    let mut server = RedisServer::new("127.0.0.1", 6379).await?;
     server.run().await?;
 
     Ok(())

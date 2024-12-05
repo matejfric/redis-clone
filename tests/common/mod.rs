@@ -24,7 +24,7 @@ impl TestServer {
     pub async fn new() -> Self {
         let server_port = SERVER_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
 
-        let server = RedisServer::new(SERVER_ADDR, server_port)
+        let mut server = RedisServer::new(SERVER_ADDR, server_port)
             .await
             .expect("Failed to create Redis server");
 
