@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::bail;
 use bytes::Bytes;
 use tokio::{net::TcpStream, time::timeout};
 
@@ -20,11 +21,22 @@ impl RedisClient {
             TcpStream::connect((address, port)),
         )
         .await??;
+        let mut conn = Connection::new(stream);
 
-        Ok(RedisClient {
-            conn: Connection::new(stream),
-        })
+        // Dirty workaround to check if the server is not full
+        // (i.e., reached max client limit).
+        // This slows down the connection process...
+        if let Ok(Ok(Some(Frame::Error(msg)))) =
+            timeout(Duration::from_millis(10), conn.read_frame()).await
+        {
+            log::error!("Error connecting to server: {}", msg);
+            conn.shutdown().await?;
+            bail!("Error connecting to server: {}", msg)
+        }
+
+        Ok(RedisClient { conn })
     }
+
     /// Send a command and receive a response
     async fn execute(&mut self, command: Command) -> anyhow::Result<Option<Frame>> {
         // Convert command to frame

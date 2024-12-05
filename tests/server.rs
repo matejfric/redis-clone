@@ -120,6 +120,13 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn connect_to_server() {
+        common::get_or_init_logger();
+        let port = common::TestServer::new().await.port();
+        let _client = TestClient::new(port).await;
+    }
+
+    #[tokio::test]
     async fn get_before_set() {
         common::get_or_init_logger();
         let port = common::TestServer::new().await.port();

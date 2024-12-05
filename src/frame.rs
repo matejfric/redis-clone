@@ -4,7 +4,7 @@ use bytes::{Buf, Bytes};
 use std::io::Cursor;
 
 use crate::err::RedisProtocolError;
-use crate::{integer, null, simple};
+use crate::{error, integer, null, simple};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Frame {
@@ -65,9 +65,13 @@ impl Frame {
     pub fn parse(cursor: &mut Cursor<&[u8]>) -> anyhow::Result<Frame, RedisProtocolError> {
         match cursor.get_u8() {
             b'_' => Ok(null!()),
-            b'+' | b'-' => {
+            b'+' => {
                 let line = get_line(cursor)?;
                 Ok(simple!(String::from_utf8_lossy(line).to_string()))
+            }
+            b'-' => {
+                let line = get_line(cursor)?;
+                Ok(error!(String::from_utf8_lossy(line).to_string()))
             }
             b':' => {
                 let line = get_line(cursor)?;

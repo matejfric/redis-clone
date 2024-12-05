@@ -42,10 +42,8 @@ impl TestServer {
     }
 
     /// Create a new Redis client connected to a test server
-    pub async fn create_client(&self) -> redis_clone::RedisClient {
-        RedisClient::new(SERVER_ADDR, self.port)
-            .await
-            .expect("Failed to create Redis client")
+    pub async fn create_client(&self) -> anyhow::Result<redis_clone::RedisClient> {
+        RedisClient::new(SERVER_ADDR, self.port).await
     }
 
     /// Get the port of the running server

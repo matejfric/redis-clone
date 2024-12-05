@@ -1,5 +1,7 @@
 use core::str;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use bytes::Bytes;
 use tokio::net::TcpListener;
@@ -8,17 +10,36 @@ use tokio::time::{timeout, Duration};
 
 use crate::cmd::Command;
 use crate::connection::Connection;
-use crate::constants::{SERVER_SHUTDOWN_CONNECTION_TIMEOUT, TIMEOUT_DURATION};
+use crate::constants::{MAX_CLIENTS, SERVER_SHUTDOWN_CONNECTION_TIMEOUT, TIMEOUT_DURATION};
 use crate::db::DB;
 use crate::err::RedisCommandError;
 use crate::frame::Frame;
-use crate::simple;
+use crate::{error, simple};
+
+/// A guard to keep track of the number of active clients.
+struct ClientGuard {
+    client_count: Arc<AtomicUsize>,
+}
+
+impl ClientGuard {
+    fn new(client_count: Arc<AtomicUsize>) -> Self {
+        client_count.fetch_add(1, Ordering::Relaxed);
+        Self { client_count }
+    }
+}
+
+impl Drop for ClientGuard {
+    fn drop(&mut self) {
+        self.client_count.fetch_sub(1, Ordering::Relaxed);
+    }
+}
 
 pub struct RedisServer {
     listener: TcpListener,
     db: DB,
     shutdown: broadcast::Sender<()>,
     handles: Vec<tokio::task::JoinHandle<()>>,
+    client_count: Arc<AtomicUsize>,
 
     address: String,
     port: u16, // default Redis port is 6379
@@ -35,6 +56,7 @@ impl RedisServer {
             db,
             shutdown,
             handles: Vec::new(),
+            client_count: Arc::new(AtomicUsize::new(0)),
             address: address.to_string(),
             port,
         })
@@ -73,13 +95,23 @@ impl RedisServer {
             tokio::select! {
                 result = accept => {
                     match result {
-                        Ok((connection, addr)) => {
+                        Ok((mut connection, addr)) => {
+                            // Check if the maximum number of clients has been reached.
+                            if self.client_count.load(Ordering::Relaxed) >= MAX_CLIENTS {
+                                let frame = error!("max number of clients reached");
+                                connection.write_frame(&frame).await?;
+                                connection.shutdown().await?;
+                                log::warn!("Max clients reached, not accepting new connection. Caused by: {}", addr);
+                                continue;
+                            }
+
                             let db = self.db.clone();
                             let shutdown_rx = self.shutdown.subscribe();
+                            let client_count = Arc::clone(&self.client_count);
 
                             // Spawn a new task for each connection.
                             self.handles.push(tokio::spawn(async move {
-                                match Self::handle_client_connection(connection, db, addr, shutdown_rx).await {
+                                match Self::handle_client_connection(connection, db, addr, shutdown_rx, client_count).await {
                                     Ok(_) => log::info!("Closed connection: {}", addr),
                                     Err(e) => log::error!("Connection error for {}: {}", addr, e),
                                 };
@@ -133,7 +165,9 @@ impl RedisServer {
         db: DB,
         addr: SocketAddr,
         mut shutdown_rx: broadcast::Receiver<()>,
+        client_count: Arc<AtomicUsize>,
     ) -> anyhow::Result<()> {
+        let _guard = ClientGuard::new(client_count);
         loop {
             let frame = tokio::select! {
                 result = timeout(TIMEOUT_DURATION, conn.read_frame()) => {

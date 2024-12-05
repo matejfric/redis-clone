@@ -13,6 +13,7 @@ use crate::frame::Frame;
 pub struct Connection {
     stream: BufWriter<TcpStream>,
     buffer: BytesMut,
+    online: bool,
 }
 
 impl Connection {
@@ -20,6 +21,7 @@ impl Connection {
         Connection {
             stream: BufWriter::new(stream),
             buffer: BytesMut::with_capacity(1024),
+            online: true,
         }
     }
 
@@ -156,5 +158,14 @@ impl Connection {
             Err(RedisProtocolError::NotEnoughData) => Ok(None),
             Err(e) => Err(e.into()),
         }
+    }
+
+    pub async fn shutdown(&mut self) -> anyhow::Result<()> {
+        self.stream
+            .shutdown()
+            .await
+            .context("Failed to shutdown the stream.")?;
+        self.online = false;
+        Ok(())
     }
 }

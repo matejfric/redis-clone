@@ -3,6 +3,7 @@ use std::sync::Arc;
 use assert_matches::assert_matches;
 
 use redis_clone::common::bytes_to_i64;
+use redis_clone::constants::MAX_CLIENTS;
 use redis_clone::Frame;
 use redis_clone::RedisClient;
 use redis_clone::{array, bulk, integer, null, simple};
@@ -41,11 +42,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn max_clients() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+
+        // 1) Create the maximum number of clients
+        let mut clients = Vec::new();
+        for _ in 0..MAX_CLIENTS {
+            clients.push(test_server.create_client().await.unwrap());
+        }
+
+        // 2) Attempt to create one more client
+        let client = test_server.create_client().await;
+        assert!(client.is_err());
+
+        // Drop all clients
+        drop(clients);
+
+        // Repeat the process once more to ensure the client counter is reset
+
+        // 1) Create the maximum number of clients
+        let mut clients = Vec::new();
+        for _ in 0..MAX_CLIENTS {
+            clients.push(test_server.create_client().await.unwrap());
+        }
+
+        // 2) Attempt to create one more client
+        let client = test_server.create_client().await;
+        assert!(client.is_err());
+    }
+
+    #[tokio::test]
     async fn ping() {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         let response = client.ping(None).await.unwrap().unwrap();
         assert_eq!(response, simple!("PONG"));
@@ -63,7 +96,7 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         // Set some keys
         let keys = vec!["key1", "key2", "key3"];
@@ -120,7 +153,7 @@ mod tests {
 
                 tokio::spawn(async move {
                     // Create a new client for this task
-                    let mut client = test_server_clone.create_client().await;
+                    let mut client = test_server_clone.create_client().await.unwrap();
 
                     // Wait for all clients to be ready
                     barrier_clone.wait().await;
@@ -141,7 +174,7 @@ mod tests {
         }
 
         // Verify the final value of the shared counter
-        let mut final_client = test_server.create_client().await;
+        let mut final_client = test_server.create_client().await.unwrap();
         let response = final_client
             .get(shared_key.to_string())
             .await
@@ -159,7 +192,9 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let client = Arc::new(tokio::sync::Mutex::new(test_server.create_client().await));
+        let client = Arc::new(tokio::sync::Mutex::new(
+            test_server.create_client().await.unwrap(),
+        ));
 
         // Number of concurrent tasks
         let num_tasks = 256;
@@ -250,7 +285,7 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         // Set some keys
         let keys = vec!["key1", "key2", "key3"];
@@ -283,7 +318,7 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         // Set some keys
         let keys_to_match = vec!["k1y", "k2y", "k3y"];
@@ -317,7 +352,7 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         // Set some keys
         let keys = vec!["key1", "key2", "key3"];
@@ -341,7 +376,7 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         // Attempt to set expiration on a non-existent key
         let response = client
@@ -379,7 +414,7 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         let frames = vec![
             array!(bulk!("Hello, Redis!"), bulk!("Hello, World!")),
@@ -402,7 +437,7 @@ mod tests {
         common::get_or_init_logger();
 
         let test_server = common::TestServer::new().await;
-        let mut client = test_server.create_client().await;
+        let mut client = test_server.create_client().await.unwrap();
 
         // Set a key with an expiration
         let key = "key";
