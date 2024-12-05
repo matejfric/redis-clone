@@ -8,6 +8,8 @@ use bytes::Bytes;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex; // async mutex, because of the `expiration_task`
 
+use crate::constants::DB_EXPIRATION_CHECK_INTERVAL;
+
 #[derive(Clone, Debug)]
 struct ExpirationEntry {
     key: String,
@@ -90,20 +92,20 @@ impl DB {
 
         // Spawn a Tokio task for key expiration
         tokio::spawn(async move {
+            let mut interval = tokio::time::interval(DB_EXPIRATION_CHECK_INTERVAL);
+
             loop {
-                // Check if we should stop
+                // Wait for the next interval tick
+                interval.tick().await;
+
+                // Check if we should stop (shutdown signal)
                 if receiver.try_recv().is_ok() {
                     break;
                 }
 
-                // Check for expired keys
-                let now = Instant::now();
-
-                // Acquire locks asynchronously
-                let mut queue = expiration_queue.lock().await;
-                let mut data_store = data.lock().await;
-
                 // Remove expired keys
+                let now = Instant::now();
+                let mut queue = expiration_queue.lock().await;
                 let mut expired_keys = Vec::new();
                 while let Some(entry) = queue.peek() {
                     if entry.expiration_time <= now {
@@ -115,18 +117,14 @@ impl DB {
                         break;
                     }
                 }
+                drop(queue);
 
                 // Remove expired keys from data store
+                let mut data_store = data.lock().await;
                 for key in expired_keys {
                     data_store.remove(&key);
                 }
-
-                // Drop locks before sleeping
-                drop(queue);
                 drop(data_store);
-
-                // Use Tokio's sleep for async waiting
-                tokio::time::sleep(Duration::from_millis(100)).await;
             }
         });
     }
