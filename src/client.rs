@@ -88,6 +88,10 @@ impl RedisClient {
                 Frame::Bulk(Bytes::from(key)),
                 Frame::Bulk(Bytes::from(seconds.to_string())),
             ]),
+            Command::TTL { key } => Frame::Array(vec![
+                Frame::Bulk(Bytes::from("TTL")),
+                Frame::Bulk(Bytes::from(key)),
+            ]),
         };
 
         // Write the frame to the connection
@@ -172,6 +176,11 @@ impl RedisClient {
 
     pub async fn lolwut(&mut self, frames: Vec<Frame>) -> anyhow::Result<Option<Frame>> {
         let command = Command::Lolwut(frames);
+        self.execute(command).await
+    }
+
+    pub async fn ttl(&mut self, key: String) -> anyhow::Result<Option<Frame>> {
+        let command = Command::TTL { key };
         self.execute(command).await
     }
 }

@@ -261,6 +261,27 @@ impl DB {
         Ok(Bytes::from(new_value.to_string()))
     }
 
+    pub async fn ttl(&self, key: &str) -> Result<Option<Duration>, ()> {
+        let db_guard = self.data.lock().await;
+        let maybe_item = db_guard.get(key);
+        match maybe_item {
+            Some(item) => match item.expiration {
+                Some(expiration) => {
+                    if Instant::now() < expiration {
+                        Ok(Some(expiration - Instant::now()))
+                    } else {
+                        // Key has (just) expired
+                        Ok(None)
+                    }
+                }
+                // Key has no expiration
+                None => Ok(None),
+            },
+            // Key does not exist
+            None => Err(()),
+        }
+    }
+
     /// Shutdown method to stop the expiration task
     pub async fn shutdown(&self) {
         // Send signal to stop the expiration task

@@ -40,20 +40,24 @@ pub enum Command {
         key: String,
         seconds: u64,
     },
+    #[allow(clippy::upper_case_acronyms)]
+    TTL {
+        key: String,
+    },
 }
 
 impl Command {
     pub fn from_frame(frame: Frame) -> anyhow::Result<Command, RedisCommandError> {
         match frame {
             Frame::Array(parts) => {
-                // Should be constant time without reallocation
-                let mut parts = VecDeque::from(parts);
-
                 if parts.is_empty() {
                     return Err(RedisCommandError::InvalidCommand(
                         "Empty command".to_string(),
                     ));
                 }
+
+                // Should be constant time without reallocation
+                let mut parts = VecDeque::from(parts);
 
                 // Get the command name
                 let command = Self::bulk_to_string(parts.pop_front().unwrap())?;
@@ -120,7 +124,6 @@ impl Command {
                             let msg = Self::bulk_to_string(parts.pop_front().unwrap())?;
                             Ok(Command::Ping { msg: Some(msg) })
                         } else {
-                            // TODO: variable number of arguments
                             return Err(Self::wrong_number_of_arguments(
                                 "PING",
                                 "0 or 1",
@@ -205,6 +208,13 @@ impl Command {
                             ))
                         })?;
                         Ok(Command::Expire { key, seconds })
+                    }
+                    "TTL" => {
+                        if parts.len() != 1 {
+                            return Err(Self::wrong_number_of_arguments("TTL", "1", parts.len()));
+                        }
+                        let key = Self::bulk_to_string(parts.pop_front().unwrap())?;
+                        Ok(Command::TTL { key })
                     }
                     _ => Ok(Command::Unknown(command)),
                 }

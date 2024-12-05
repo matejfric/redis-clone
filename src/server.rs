@@ -259,6 +259,17 @@ impl RedisServer {
                     Frame::Integer(0)
                 }
             }
+            Command::TTL { key } => {
+                let ttl = db.ttl(key.as_str()).await;
+                match ttl {
+                    Ok(ttl) => match ttl {
+                        Some(ttl) => Frame::Integer(ttl.as_secs() as i64),
+                        None => Frame::Integer(-1),
+                    },
+                    // Key does not exist
+                    Err(_) => Frame::Integer(-2),
+                }
+            }
         }
     }
 }

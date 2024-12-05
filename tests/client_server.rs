@@ -354,6 +354,11 @@ mod tests {
         // Set a key with an expiration
         let key = "key";
         client.set_key_value(key, "value").await;
+
+        // No expiration, TTL should be -1
+        let response = client.ttl(key.to_string()).await.unwrap().unwrap();
+        assert_eq!(response, Frame::Integer(-1));
+
         let response = client.expire(key.to_string(), 1).await.unwrap().unwrap();
         assert_eq!(response, integer!(1));
 
@@ -414,11 +419,19 @@ mod tests {
         let response = client.get(key.to_string()).await.unwrap().unwrap();
         assert_eq!(response, bulk!(value));
 
+        // TTL
+        let response = client.ttl(key.to_string()).await.unwrap().unwrap();
+        assert_eq!(response, Frame::Integer(1)); // This may fail...
+
         // Wait for the key to expire
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         // Verify that the key has been removed
         let response = client.get(key.to_string()).await.unwrap().unwrap();
         assert_eq!(response, null!());
+
+        // Double check
+        let response = client.ttl(key.to_string()).await.unwrap().unwrap();
+        assert_eq!(response, Frame::Integer(-2));
     }
 }
