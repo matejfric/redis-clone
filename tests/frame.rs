@@ -146,6 +146,20 @@ mod tests {
     }
 
     #[test]
+    fn test_array_empty() {
+        let data = b"*0\r\n";
+        let mut cursor = Cursor::new(&data[..]);
+
+        assert!(Frame::is_parsable(&mut cursor).is_ok());
+
+        cursor.set_position(0);
+        match Frame::parse(&mut cursor).unwrap() {
+            Frame::Array(frames) => assert_eq!(frames.len(), 0),
+            _ => panic!("Expected Array frame"),
+        }
+    }
+
+    #[test]
     fn test_error_conditions() {
         // Test incomplete data
         let data = b"+OK"; // missing \r\n
