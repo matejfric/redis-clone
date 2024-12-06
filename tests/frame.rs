@@ -90,7 +90,21 @@ mod tests {
     }
 
     #[test]
-    fn test_null() {
+    fn test_null_resp2() {
+        let data = b"$-1\r\n";
+        let mut cursor = Cursor::new(&data[..]);
+
+        assert!(Frame::is_parsable(&mut cursor).is_ok());
+
+        cursor.set_position(0);
+        match Frame::parse(&mut cursor).unwrap() {
+            Frame::Null => (),
+            _ => panic!("Expected Null frame"),
+        }
+    }
+
+    #[test]
+    fn test_null_resp3() {
         let data = b"_\r\n";
         let mut cursor = Cursor::new(&data[..]);
 
