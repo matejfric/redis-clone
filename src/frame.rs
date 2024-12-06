@@ -13,7 +13,7 @@ pub enum Frame {
     Integer(i64),      // `:[<+|->]<value>\r\n`
     Bulk(Bytes),       // `${number of bytes}\r\n{data}\r\n`
     Null,              // RESP2: `$-1\r\n (string of length -1)` OR RESP3: `_\r\n`
-    Array(Vec<Frame>), // `*{number of elements}\r\n{frames}\r\n` (empty array `*0\r\n`
+    Array(Vec<Frame>), // `*{number of elements}\r\n{frames}\r\n` (empty array `*0\r\n`)
 }
 
 impl Frame {
@@ -132,7 +132,7 @@ impl Frame {
         }
     }
 
-    /// Appends a new Frame to the Array variant.
+    /// Appends a new `Frame` to the `Array` variant.
     /// Returns a Result indicating success or error if called on a non-Array variant.
     pub fn append(&mut self, frame: Frame) -> anyhow::Result<()> {
         if let Frame::Array(ref mut frames) = self {

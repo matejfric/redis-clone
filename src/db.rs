@@ -130,20 +130,14 @@ impl DB {
     }
 
     pub async fn set(&self, key: String, value: Bytes, duration: Option<Duration>) {
-        let expiration_time = duration.map(|d| Instant::now() + d);
+        let expiration = duration.map(|d| Instant::now() + d);
 
         // Lock and insert into data store
         let mut data_store = self.data.lock().await;
-        data_store.insert(
-            key.clone(),
-            DBItem {
-                value,
-                expiration: expiration_time,
-            },
-        );
+        data_store.insert(key.clone(), DBItem { value, expiration });
 
         // If there's an expiration, add to queue
-        if let Some(expire) = expiration_time {
+        if let Some(expire) = expiration {
             let mut queue = self.expiration_queue.lock().await;
             queue.push(ExpirationEntry {
                 key,
@@ -216,7 +210,7 @@ impl DB {
         db_guard.shrink_to_fit(); // Free up unused memory.
     }
 
-    /// Get all the keys in the database.
+    /// Get all keys matching a pattern.
     pub async fn keys(&self, pattern: &str) -> anyhow::Result<Vec<String>> {
         let glob_pattern = glob::Pattern::new(pattern)?;
         let db_guard = self.data.lock().await;
@@ -251,7 +245,7 @@ impl DB {
             Err(e) => bail!(e),
         };
 
-        // Modify the value in place
+        // Modify the value in-place
         item.value = Bytes::from(new_value.to_string());
 
         drop(db_guard);
@@ -281,11 +275,18 @@ impl DB {
     }
 
     /// Shutdown method to stop the expiration task
-    pub async fn shutdown(&self) {
+    pub async fn shutdown(&self) -> anyhow::Result<()> {
         // Send signal to stop the expiration task
         match self.expiration_sender.send(()).await {
-            Ok(_) => log::info!("Database shutdown signal sent."),
-            Err(e) => log::error!("Error sending database shutdown signal: {:?}", e),
+            Ok(_) => {
+                log::info!("Database shutdown signal sent.");
+                Ok(())
+            }
+            Err(e) => {
+                let msg = format!("Error sending database shutdown signal: {:?}", e);
+                log::error!("{}", msg);
+                Err(anyhow!(msg))
+            }
         }
     }
 }

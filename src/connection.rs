@@ -9,7 +9,7 @@ use crate::frame::Frame;
 
 /// Client connection to the Redis server. Handles reading and writing frames.
 ///
-/// Inspired by https://tokio.rs/tokio/tutorial/framin
+/// Inspired by https://tokio.rs/tokio/tutorial/framing
 pub struct Connection {
     stream: BufWriter<TcpStream>,
     buffer: BytesMut,
@@ -58,19 +58,7 @@ impl Connection {
 
     /// Write a frame to the connection.
     pub async fn write_frame(&mut self, frame: &Frame) -> anyhow::Result<()> {
-        match frame {
-            Frame::Array(values) => {
-                self.stream.write_u8(b'*').await?;
-                self.stream
-                    .write_all(values.len().to_string().as_bytes())
-                    .await?;
-                self.stream.write_all(b"\r\n").await?;
-                for value in values {
-                    self.write_value(value).await?;
-                }
-            }
-            _ => self.write_value(frame).await?,
-        }
+        self.write_value(frame).await?;
 
         // Ensure that the written data is flushed to the socket.
         self.stream
@@ -146,8 +134,6 @@ impl Connection {
                 // Reset the cursor position.
                 buf.set_position(0);
 
-                // If the encoded frame representation is invalid,
-                // current connection is terminated (without affecting others).
                 let frame = Frame::parse(&mut buf)?;
 
                 // Discard the parsed data from the read buffer.

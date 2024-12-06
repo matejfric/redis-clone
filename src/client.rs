@@ -23,9 +23,10 @@ impl RedisClient {
         .await??;
         let mut conn = Connection::new(stream);
 
-        // Dirty workaround to check if the server is not full
+        // TODO: Dirty workaround to check if the server is not full
         // (i.e., reached max client limit).
-        // This slows down the connection process...
+        // This slows down the connection process and
+        // the response may not reach the client in time...
         if let Ok(Ok(Some(Frame::Error(msg)))) =
             timeout(Duration::from_millis(10), conn.read_frame()).await
         {
@@ -186,11 +187,13 @@ impl RedisClient {
         self.execute(command).await
     }
 
+    /// Try to find out
     pub async fn lolwut(&mut self, frames: Vec<Frame>) -> anyhow::Result<Option<Frame>> {
         let command = Command::Lolwut(frames);
         self.execute(command).await
     }
 
+    /// Get the time-to-live for a key
     pub async fn ttl(&mut self, key: String) -> anyhow::Result<Option<Frame>> {
         let command = Command::TTL { key };
         self.execute(command).await

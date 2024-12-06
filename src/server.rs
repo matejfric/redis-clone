@@ -129,15 +129,12 @@ impl RedisServer {
                 }
             }
         }
-
-        self.shutdown().await;
-
-        Ok(())
+        self.shutdown().await
     }
 
-    async fn shutdown(&mut self) {
+    async fn shutdown(&mut self) -> anyhow::Result<()> {
         // Stop database expiration task
-        self.db.shutdown().await;
+        self.db.shutdown().await?;
 
         // Stop all active connections
         for handle in self.handles.drain(..) {
@@ -146,6 +143,7 @@ impl RedisServer {
                 Err(e) => log::error!("Error shutting down connection: {}", e),
             }
         }
+        Ok(())
     }
 
     /// Get a handle to the shutdown signal.
