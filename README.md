@@ -5,6 +5,15 @@
 [![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![GitHub license](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/matejfric/redis-clone/blob/main/LICENSE)
 
+- [1. Usage](#1-usage)
+- [2. Notes from Redis Protocol Specification](#2-notes-from-redis-protocol-specification)
+- [3. Progress](#3-progress)
+  - [3.1. Optional](#31-optional)
+- [4. Architecture Overview](#4-architecture-overview)
+- [5. Contributing](#5-contributing)
+  - [5.1. Testing](#51-testing)
+- [6. Sources](#6-sources)
+
 ## 1. Usage
 
 Start the server with `cargo run`:
@@ -29,6 +38,8 @@ get answer
 ```
 
 ## 2. Notes from Redis Protocol Specification
+
+- [Redis serialization protocol (RESP) specification](https://redis.io/docs/latest/develop/reference/protocol-spec/)
 
 Sending commands to a Redis server:
 
@@ -55,7 +66,7 @@ The difference between simple strings and errors in RESP is that clients should 
 
 ## 3. Progress
 
-- [x] Implement RESP protocol parser and serializer for selected types.
+- [x] Implement RESP parser and serializer for selected types.
   - [x] Simple strings
   - [x] Errors
   - [x] Integers
@@ -85,7 +96,44 @@ The difference between simple strings and errors in RESP is that clients should 
 - [ ] [Sharded DB](https://tokio.rs/tokio/tutorial/shared-state#mutex-sharding)
 - [x] [LOLWUT](https://redis.io/commands/lolwut) (kind of)
 
-## 4. Contributing
+## 4. Architecture Overview
+
+The implementation uses [Tokio](https://tokio.rs/) for asynchronous I/O.
+
+```mermaid
+graph TD
+    style Connection fill:#aaa,stroke:#333,stroke-width:2,color:#000
+    style Frame fill:#aaa,stroke:#333,stroke-width:2,color:#000
+    style Cmd fill:#aaa,stroke:#333,stroke-width:2,color:#000
+    style Server fill:#aaa,stroke:#333,stroke-width:2,color:#000
+    style Client fill:#aaa,stroke:#333,stroke-width:2,color:#000
+    style Database fill:#aaa,stroke:#333,stroke-width:2,color:#000
+
+    subgraph "Main Modules"
+        Connection["**connection.rs**<br>Wraps TcpStream"] 
+        Frame["**frame.rs**<br>Redis datatypes (RESP)"] 
+        Cmd["**cmd.rs**<br>Parses Redis commands"]
+        Server["**server.rs**<br>Redis server"] 
+        Client["**client.rs**<br>Redis client"] 
+        Database["**db.rs**<br>Database"]
+    end
+
+    Connection -- "Works with frames" --> Frame
+    Server -- "Uses" --> Connection
+    Client -- "Uses" --> Connection
+    Cmd -- "Parses frames" --> Frame
+    Server -- "Uses" --> Cmd
+    Client -- "Uses" --> Cmd
+    Server -- "Accesses database" --> Database
+```
+
+- `connection.rs` wraps `tokio::net::TcpStream` and provides easy to use API for RESP. It works with frames defined in `frame.rs` (a frame is a Redis datatype).
+- `server.rs` and `client.rs` both use `connection.rs`.
+- `cmd.rs` contains parsing of Redis commands, both *server* and *client* use it (it operates on frames)
+- *Server* accesses *database* `db.rs`.
+- *Database* is a simple in-memory key-value store with a periodic expiration checking.
+
+## 5. Contributing
 
 Please setup pre-commit hooks with the provided script:
 
@@ -93,7 +141,7 @@ Please setup pre-commit hooks with the provided script:
 sh setup-git-hooks.sh 
 ```
 
-### 4.1. Testing
+### 5.1. Testing
 
 Tests are run before each push to the repository with [`.githooks/pre-push`](.githooks/pre-push). To run tests manually:
 
@@ -101,8 +149,8 @@ Tests are run before each push to the repository with [`.githooks/pre-push`](.gi
 - Run tests on a single thread with `cargo test -- --test-threads=1`.
 - Run a single test with `cargo test -- --test <test_file> [<test_name>] [--nocapture] [--exact]`.
 
-## 5. Sources
+## 6. Sources
 
-- [Redis protocol specification](https://redis.io/docs/latest/develop/reference/protocol-spec/)
+- [Redis serialization protocol specification](https://redis.io/docs/latest/develop/reference/protocol-spec/)
 - [Redis commands](https://redis.io/docs/latest/commands/)
 - [Tokio tutorial](https://tokio.rs/tokio/tutorial)
