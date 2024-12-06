@@ -4,6 +4,7 @@ use anyhow::bail;
 use bytes::Bytes;
 use tokio::{net::TcpStream, time::timeout};
 
+use crate::bulk;
 use crate::cmd::Command;
 use crate::connection::Connection;
 use crate::constants::CLIENT_CONNECTION_TIMEOUT;
@@ -42,69 +43,45 @@ impl RedisClient {
     async fn execute(&mut self, command: Command) -> anyhow::Result<Option<Frame>> {
         // Convert command to frame
         let frame = match command {
-            Command::Get { key } => Frame::Array(vec![
-                Frame::Bulk(Bytes::from("GET")),
-                Frame::Bulk(Bytes::from(key)),
-            ]),
+            Command::Get { key } => Frame::Array(vec![bulk!("GET"), bulk!(key)]),
             Command::Set {
                 key,
                 val,
                 expiration,
             } => {
-                let mut cmd = Frame::Array(vec![
-                    Frame::Bulk(Bytes::from("SET")),
-                    Frame::Bulk(Bytes::from(key)),
-                    Frame::Bulk(val),
-                ]);
+                let mut cmd = Frame::Array(vec![bulk!("SET"), bulk!(key), bulk!(val)]);
                 if expiration.is_some() {
-                    cmd.append(Frame::Bulk(Bytes::from("PX")))?;
-                    cmd.append(Frame::Bulk(Bytes::from(
-                        expiration.unwrap().as_millis().to_string(),
-                    )))?;
+                    cmd.append(bulk!("PX"))?;
+                    cmd.append(bulk!(expiration.unwrap().as_millis().to_string()))?;
                 }
                 cmd
             }
             Command::Ping { msg } => match msg {
-                Some(message) => Frame::Array(vec![
-                    Frame::Bulk(Bytes::from("PING")),
-                    Frame::Bulk(Bytes::from(message)),
-                ]),
-                None => Frame::Array(vec![Frame::Bulk(Bytes::from("PING"))]),
+                Some(message) => Frame::Array(vec![bulk!("PING"), bulk!(message)]),
+                None => Frame::Array(vec![bulk!("PING")]),
             },
             Command::Del { keys } => {
-                let mut frames = vec![Frame::Bulk(Bytes::from("DEL"))];
-                frames.extend(keys.into_iter().map(|key| Frame::Bulk(Bytes::from(key))));
+                let mut frames = vec![bulk!("DEL")];
+                frames.extend(keys.into_iter().map(|key| bulk!(key)));
                 Frame::Array(frames)
             }
             Command::Exists { keys } => {
-                let mut frames = vec![Frame::Bulk(Bytes::from("EXISTS"))];
-                frames.extend(keys.into_iter().map(|key| Frame::Bulk(Bytes::from(key))));
+                let mut frames = vec![bulk!("EXISTS")];
+                frames.extend(keys.into_iter().map(|key| bulk!(key)));
                 Frame::Array(frames)
             }
-            Command::Increment { key } => Frame::Array(vec![
-                Frame::Bulk(Bytes::from("INCR")),
-                Frame::Bulk(Bytes::from(key)),
-            ]),
-            Command::FlushDB => Frame::Array(vec![Frame::Bulk(Bytes::from("FLUSHDB"))]),
-            Command::DBSize => Frame::Array(vec![Frame::Bulk(Bytes::from("DBSIZE"))]),
-            Command::Keys { pattern } => Frame::Array(vec![
-                Frame::Bulk(Bytes::from("KEYS")),
-                Frame::Bulk(Bytes::from(pattern)),
-            ]),
-            Command::Unknown(cmd) => Frame::Array(vec![Frame::Bulk(Bytes::from(cmd))]),
-            Command::Lolwut(frames) => Frame::Array(vec![
-                Frame::Bulk(Bytes::from("LOLWUT")),
-                Frame::Array(frames),
-            ]),
+            Command::Increment { key } => Frame::Array(vec![bulk!("INCR"), bulk!(key)]),
+            Command::FlushDB => Frame::Array(vec![bulk!("FLUSHDB")]),
+            Command::DBSize => Frame::Array(vec![bulk!("DBSIZE")]),
+            Command::Keys { pattern } => Frame::Array(vec![bulk!("KEYS"), bulk!(pattern)]),
+            Command::Unknown(cmd) => Frame::Array(vec![bulk!(cmd)]),
+            Command::Lolwut(frames) => Frame::Array(vec![bulk!("LOLWUT"), Frame::Array(frames)]),
             Command::Expire { key, seconds } => Frame::Array(vec![
-                Frame::Bulk(Bytes::from("EXPIRE")),
-                Frame::Bulk(Bytes::from(key)),
-                Frame::Bulk(Bytes::from(seconds.to_string())),
+                bulk!("EXPIRE"),
+                bulk!(key),
+                bulk!(seconds.to_string()),
             ]),
-            Command::TTL { key } => Frame::Array(vec![
-                Frame::Bulk(Bytes::from("TTL")),
-                Frame::Bulk(Bytes::from(key)),
-            ]),
+            Command::TTL { key } => Frame::Array(vec![bulk!("TTL"), bulk!(key)]),
         };
 
         // Write the frame to the connection

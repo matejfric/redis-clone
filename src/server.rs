@@ -3,7 +3,6 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use bytes::Bytes;
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tokio::time::{timeout, Duration};
@@ -14,7 +13,7 @@ use crate::constants::{MAX_CLIENTS, SERVER_SHUTDOWN_CONNECTION_TIMEOUT, TIMEOUT_
 use crate::db::DB;
 use crate::err::RedisCommandError;
 use crate::frame::Frame;
-use crate::{error, simple};
+use crate::{bulk, error, integer, null, simple};
 
 /// A guard to keep track of the number of active clients.
 struct ClientGuard {
@@ -193,7 +192,7 @@ impl RedisServer {
 
             let response = match Command::from_frame(frame) {
                 Ok(command) => Self::handle_command(command, &db).await,
-                Err(e) => Frame::Error(format!("ERR {}", e)),
+                Err(e) => error!(format!("ERR {}", e)),
             };
 
             match timeout(TIMEOUT_DURATION, conn.write_frame(&response)).await {
@@ -219,8 +218,8 @@ impl RedisServer {
     async fn handle_command(command: Command, db: &DB) -> Frame {
         match command {
             Command::Get { key } => match db.get(&key).await {
-                Some(value) => Frame::Bulk(value),
-                None => Frame::Null,
+                Some(value) => bulk!(value),
+                None => null!(),
             },
             Command::Set {
                 key,
@@ -228,31 +227,31 @@ impl RedisServer {
                 expiration,
             } => {
                 db.set(key, val, expiration).await;
-                Frame::Simple("OK".to_string())
+                simple!("OK")
             }
             Command::Ping { msg } => match msg {
-                Some(msg) => Frame::Simple(msg),
-                None => Frame::Simple("PONG".to_string()),
+                Some(msg) => simple!(msg),
+                None => simple!("PONG"),
             },
             Command::Increment { key } => {
                 log::debug!("Incrementing key: {}", key);
                 match db.increment(&key).await {
                     // Reading bytes from DB should be safe
                     Ok(value) => match unsafe { str::from_utf8_unchecked(&value).parse::<i64>() } {
-                        Ok(num) => Frame::Integer(num),
+                        Ok(num) => integer!(num),
                         Err(_) => {
-                            Frame::Error("ERR value is not an integer or out of range".to_string())
+                            error!("ERR value is not an integer or out of range")
                         }
                     },
                     Err(e) => {
                         log::debug!("Error incrementing key: {}", e);
-                        Frame::Error(format!("ERR {}", e))
+                        error!(format!("ERR {}", e))
                     }
                 }
             }
             Command::FlushDB => {
                 db.flush().await;
-                Frame::Simple("OK".to_string())
+                simple!("OK")
             }
             Command::Del { keys } => {
                 let mut count = 0;
@@ -261,7 +260,7 @@ impl RedisServer {
                         count += 1;
                     }
                 }
-                Frame::Integer(count)
+                integer!(count)
             }
             Command::Exists { keys } => {
                 let mut count = 0;
@@ -270,47 +269,43 @@ impl RedisServer {
                         count += 1;
                     }
                 }
-                Frame::Integer(count)
+                integer!(count)
             }
-            Command::DBSize => Frame::Integer(db.size().await as i64),
-            Command::Unknown(cmd) => Frame::Error(format!(
+            Command::DBSize => integer!(db.size().await as i64),
+            Command::Unknown(cmd) => error!(format!(
                 "ERR {}",
                 RedisCommandError::InvalidCommand(cmd.to_string())
             )),
             Command::Keys { pattern } => {
                 let keys = db.keys(pattern.as_str()).await;
                 match keys {
-                    Ok(keys) => Frame::Array(
-                        keys.into_iter()
-                            .map(|s| Frame::Bulk(Bytes::from(s)))
-                            .collect(),
-                    ),
-                    Err(e) => Frame::Error(format!("ERR {}", e)),
+                    Ok(keys) => Frame::Array(keys.into_iter().map(|s| bulk!(s)).collect()),
+                    Err(e) => error!(format!("ERR {}", e)),
                 }
             }
             Command::Lolwut(mut frames) => {
                 let mut frames = frames.remove(0);
                 match frames.append(simple!("https://youtu.be/dQw4w9WgXcQ?si=9GzI0HV44IG4_rPi")) {
                     Ok(_) => frames,
-                    Err(e) => Frame::Error(format!("ERR {}", e)),
+                    Err(e) => error!(format!("ERR {}", e)),
                 }
             }
             Command::Expire { key, seconds } => {
                 if db.expire(key.as_str(), Duration::from_secs(seconds)).await {
-                    Frame::Integer(1)
+                    integer!(1)
                 } else {
-                    Frame::Integer(0)
+                    integer!(0)
                 }
             }
             Command::TTL { key } => {
                 let ttl = db.ttl(key.as_str()).await;
                 match ttl {
                     Ok(ttl) => match ttl {
-                        Some(ttl) => Frame::Integer(ttl.as_secs() as i64),
-                        None => Frame::Integer(-1),
+                        Some(ttl) => integer!(ttl.as_secs() as i64),
+                        None => integer!(-1),
                     },
                     // Key does not exist
-                    Err(_) => Frame::Integer(-2),
+                    Err(_) => integer!(-2),
                 }
             }
         }

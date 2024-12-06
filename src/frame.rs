@@ -4,7 +4,7 @@ use bytes::{Buf, Bytes};
 use std::io::Cursor;
 
 use crate::err::RedisProtocolError;
-use crate::{error, integer, null, simple};
+use crate::{bulk, error, integer, null, simple};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Frame {
@@ -91,16 +91,14 @@ impl Frame {
                 log::debug!("Parsing bulk string with length: {}", len);
 
                 if len == -1 {
-                    return Ok(Frame::Null);
+                    return Ok(null!());
                 }
 
                 let data_start = cursor.position() as usize;
                 let data_end = data_start + len as usize - 1;
 
                 // Read the data and advance the cursor
-                let data = Frame::Bulk(Bytes::copy_from_slice(get_byte_slice(
-                    cursor, data_start, data_end,
-                )));
+                let data = bulk!(get_byte_slice(cursor, data_start, data_end));
                 cursor.advance(len as usize + 2);
 
                 Ok(data)

@@ -57,9 +57,10 @@ macro_rules! integer {
 /// ```
 #[macro_export]
 macro_rules! bulk {
-    ($s:expr) => {
-        $crate::Frame::Bulk(bytes::Bytes::copy_from_slice($s.as_bytes()))
-    };
+    ($s:expr) => {{
+        use std::borrow::ToOwned;
+        $crate::Frame::Bulk(bytes::Bytes::from($s.to_owned()))
+    }};
 }
 
 /// Macro for creating Null frames
