@@ -187,7 +187,6 @@ impl DB {
     pub async fn remove(&self, key: &str) -> Option<Bytes> {
         let mut db_guard = self.data.lock().await;
         let value = db_guard.remove(key);
-        drop(db_guard);
 
         // Remove from expiration queue
         let mut queue_guard = self.expiration_queue.lock().await;
@@ -213,6 +212,12 @@ impl DB {
         let mut db_guard = self.data.lock().await;
         db_guard.clear(); // Remove all key-value pairs.
         db_guard.shrink_to_fit(); // Free up unused memory.
+
+        // We keep the DB lock so that this operation is atomic.
+        // Clear the expiration queue.
+        let mut queue_guard = self.expiration_queue.lock().await;
+        queue_guard.clear();
+        queue_guard.shrink_to_fit();
     }
 
     /// Get all keys matching a pattern.
