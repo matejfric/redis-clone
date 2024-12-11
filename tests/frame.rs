@@ -102,6 +102,15 @@ mod tests {
     }
 
     #[test]
+    fn test_bulk_empty() {
+        let data = b"$0\r\n";
+        let mut cursor = Cursor::new(&data[..]);
+        let result = Frame::is_parsable(&mut cursor);
+        assert!(result.is_err());
+        assert_matches!(result.unwrap_err(), RedisProtocolError::NotEnoughData);
+    }
+
+    #[test]
     fn test_null_resp2() {
         let data = b"$-1\r\n";
         let mut cursor = Cursor::new(&data[..]);
