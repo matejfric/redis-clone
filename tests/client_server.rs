@@ -469,4 +469,30 @@ mod tests {
         let response = client.ttl(key.to_string()).await.unwrap().unwrap();
         assert_eq!(response, Frame::Integer(-2));
     }
+
+    #[tokio::test]
+    async fn ttl_after_flush() {
+        common::get_or_init_logger();
+
+        let test_server = common::TestServer::new().await;
+        let mut client = test_server.create_client().await.unwrap();
+
+        let key = "key".to_string();
+        let _ = client
+            .set(
+                key.clone(),
+                bytes::Bytes::from("abcd"),
+                Some(Duration::from_secs(60)),
+            )
+            .await;
+
+        let response = client.ttl(key.clone()).await.unwrap().unwrap();
+        assert_matches!(response, Frame::Integer(i) if i > 55);
+
+        let response = client.flushdb().await.unwrap().unwrap();
+        assert_eq!(response, simple!("OK"));
+
+        let response = client.ttl(key).await.unwrap().unwrap();
+        assert_eq!(response, integer!(-2));
+    }
 }
