@@ -192,6 +192,11 @@ impl DB {
         // Remove from expiration queue
         let mut queue_guard = self.expiration_queue.lock().await;
         queue_guard.retain(|entry| entry.key != key);
+
+        // Should be an atomic operation. What if we removed the key,
+        // then set a new key (with the same name) without expiration
+        // and it would be incorrectly removed here...
+        drop(db_guard);
         drop(queue_guard);
 
         value.map(|item| item.value)
