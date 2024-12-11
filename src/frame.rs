@@ -33,12 +33,16 @@ impl Frame {
                     RedisProtocolError::ConversionError(String::from_utf8_lossy(len_u8).to_string())
                 })?;
 
-                if len == -1 {
-                    // Null bulk string
-                    Ok(())
-                } else {
-                    // Check that the buffer has enough data
-                    has_crlf(cursor)
+                match len {
+                    -1 => {
+                        // Null bulk string
+                        Ok(())
+                    }
+                    len if len < -1 => Err(RedisProtocolError::NegativeBulkLength(len)),
+                    _ => {
+                        // Check that the buffer has enough data
+                        has_crlf(cursor)
+                    }
                 }
             }
             b'*' => {

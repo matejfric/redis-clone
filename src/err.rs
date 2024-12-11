@@ -11,6 +11,9 @@ pub enum RedisProtocolError {
     #[error("Unsupported frame type: `{0}_u8`")]
     UnsupportedFrame(u8),
 
+    #[error("Negative bulk string lenght: `{0}`")]
+    NegativeBulkLength(i64),
+
     #[error("Not enough data has been buffered to parse the frame.")]
     NotEnoughData,
 }

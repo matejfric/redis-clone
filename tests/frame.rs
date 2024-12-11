@@ -4,6 +4,7 @@ mod common;
 mod tests {
     use super::common::get_or_init_logger;
 
+    use assert_matches::assert_matches;
     use bytes::Bytes;
     use std::io::Cursor;
 
@@ -90,6 +91,17 @@ mod tests {
     }
 
     #[test]
+    fn test_bulk_with_negative_length() {
+        let data = b"$-25\r\n";
+        let mut cursor = Cursor::new(&data[..]);
+
+        assert_matches!(
+            Frame::is_parsable(&mut cursor),
+            Err(RedisProtocolError::NegativeBulkLength(x)) if x == -25
+        );
+    }
+
+    #[test]
     fn test_null_resp2() {
         let data = b"$-1\r\n";
         let mut cursor = Cursor::new(&data[..]);
@@ -157,6 +169,13 @@ mod tests {
             Frame::Array(frames) => assert_eq!(frames.len(), 0),
             _ => panic!("Expected Array frame"),
         }
+    }
+
+    #[test]
+    fn test_array_with_negative_length() {
+        let data = b"*-1\r\n";
+        let mut cursor = Cursor::new(&data[..]);
+        assert!(Frame::is_parsable(&mut cursor).is_err());
     }
 
     #[test]
